@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Louis & Joyce · 玻璃花房婚礼</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="album">
+      <section class="scene hero-scene" aria-labelledby="hero-title">
+        <img
+          class="hero-photo"
+          src="assets/glasshouse-hero.png"
+          alt="傍晚花园里的玻璃花房婚礼，暖色灯光映在透明结构上"
+        />
+        <div class="hero-overlay" aria-hidden="true"></div>
+        <div class="hero-content scene-reveal">
+          <p class="kicker">Soft Glasshouse Garden</p>
+          <h1 id="hero-title">Louis & Joyce</h1>
+          <p class="hero-date">5 December 2026</p>
+          <p class="hero-line">
+            透明花房、晚风、暖灯，还有我们想认真款待的每一位客人。
+          </p>
+        </div>
+      </section>
+
+      <section class="scene story-scene" aria-labelledby="story-title">
+        <div class="scene-inner story-grid">
+          <div class="scene-heading scene-reveal">
+            <p class="kicker">我们的故事</p>
+            <h2 id="story-title">有些相遇，会慢慢长成一生的决定。</h2>
+          </div>
+          <div class="story-copy scene-reveal">
+            <article>
+              <span>相遇</span>
+              <p>
+                我们从很普通的聊天开始，后来发现彼此都愿意把生活里细小的事认真听完。
+              </p>
+            </article>
+            <article>
+              <span>这一天</span>
+              <p>
+                这场婚礼不想很夸张。我们只是希望在花园灯光里，把最重要的承诺说给最重要的人听。
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene invitation-scene" aria-labelledby="personal-title">
+        <div class="scene-inner">
+          <div class="personal-panel scene-reveal">
+            <p class="kicker" id="guest-category-label">专属邀请</p>
+            <h2 id="personal-title"></h2>
+            <p id="personal-message"></p>
+            <p class="personal-signature">Louis & Joyce</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene details-scene" aria-labelledby="details-title">
+        <div class="scene-inner">
+          <div class="scene-heading scene-reveal">
+            <p class="kicker">婚礼详情</p>
+            <h2 id="details-title">我们把这一天安排得刚刚好。</h2>
+          </div>
+          <div class="details-grid scene-reveal" id="details-grid"></div>
+        </div>
+      </section>
+
+      <section class="scene dining-scene" aria-labelledby="dining-title">
+        <div class="scene-inner dining-layout">
+          <div class="scene-heading scene-reveal">
+            <p class="kicker">晚宴体验</p>
+            <h2 id="dining-title">少一点排队，多一点坐下来聊天。</h2>
+            <p>
+              我们选择预设前菜、桌边主菜和甜点台，不让大家把时间花在排队取餐上。
+              希望大家把时间留给祝福、重逢和一顿慢慢吃完的晚餐。
+            </p>
+          </div>
+          <div class="dining-steps scene-reveal" id="dining-steps"></div>
+        </div>
+      </section>
+
+      <section class="scene table-scene" aria-labelledby="table-title">
+        <div class="scene-inner table-layout">
+          <div class="scene-heading scene-reveal">
+            <p class="kicker">你的餐桌</p>
+            <h2 id="table-title"></h2>
+          </div>
+          <div class="table-story scene-reveal">
+            <div>
+              <span>餐桌故事</span>
+              <p id="table-story"></p>
+            </div>
+            <div>
+              <span>餐桌主题</span>
+              <p id="table-theme"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene members-scene" aria-labelledby="members-title">
+        <div class="scene-inner">
+          <div class="scene-heading scene-reveal">
+            <p class="kicker">同桌宾客</p>
+            <h2 id="members-title">会坐在你身边的人。</h2>
+            <p>这些名字，已经为十二月的这一晚点头赴约。</p>
+          </div>
+          <ul class="member-list scene-reveal" id="member-list"></ul>
+        </div>
+      </section>
+
+      <section class="scene memory-scene" aria-labelledby="memory-title">
+        <div class="scene-inner memory-layout">
+          <div class="scene-heading scene-reveal">
+            <p class="kicker">留下一段记忆</p>
+            <h2 id="memory-title">写给新人，也写给此刻的自己。</h2>
+            <p>
+              选一个问题，留下一段会被认真读完的话。
+            </p>
+          </div>
+
+          <div class="memory-panel scene-reveal">
+            <div class="prompt-list" id="prompt-list" aria-label="记忆问题"></div>
+            <form class="memory-form" id="memory-form">
+              <label for="memory-input">你的回答</label>
+              <textarea
+                id="memory-input"
+                name="memory"
+                rows="5"
+                maxlength="180"
+                placeholder="写下一段你仍然记得的画面。"
+              ></textarea>
+              <button type="submit">保存这段记忆</button>
+            </form>
+            <div class="memory-confirmation" id="memory-confirmation" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scene rsvp-scene" aria-labelledby="rsvp-title">
+        <div class="scene-inner">
+          <div class="rsvp-panel scene-reveal">
+            <p class="kicker">出席回复</p>
+            <h2 id="rsvp-title">你会来到花房，和我们一起庆祝吗？</h2>
+            <div class="rsvp-options" role="group" aria-label="出席回复选项">
+              <button class="rsvp-option" type="button" data-rsvp="attending">
+                我会出席
+              </button>
+              <button class="rsvp-option" type="button" data-rsvp="unsure">
+                还不确定
+              </button>
+              <button class="rsvp-option" type="button" data-rsvp="unable">
+                无法出席
+              </button>
+            </div>
+
+            <div class="rsvp-followup" id="rsvp-followup" aria-live="polite">
+              <p class="rsvp-placeholder">请选择一个回复，我们会为你安排后续细节。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
