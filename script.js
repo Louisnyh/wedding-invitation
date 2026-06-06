@@ -1,8 +1,13 @@
+const API_URL =
+  "https://script.google.com/macros/s/AKfycbzO4xAfw11aKclxz5xzo1A8F0zliCI_Wy59DV_N6XDfQ5NVRjlm171g33hoczYXqmf0gA/exec";
+
+// Local sample data stays here only as a fallback if the live API cannot load.
+// This shape is intentionally close to the Google Sheets structure.
 const sampleData = {
-  wedding: {
+  settings: {
     couple: "Louis & Joyce",
-    date: "5 December 2026",
-    guestCount: "200 pax",
+    wedding_date: "5 December 2026",
+    hero_line: "透明花房、晚风、暖灯，还有我们想认真款待的每一位客人。",
   },
   guestTypes: {
     family: {
@@ -71,139 +76,102 @@ const sampleData = {
   ],
   tables: [
     {
-      id: "chaos-committee",
-      name: "The Chaos Committee",
-      story:
+      table_id: "chaos-committee",
+      table_name: "The Chaos Committee",
+      table_story:
         "这一桌为久未见面的朋友而设。你们不一定每天联系，但只要坐下来，很快就会想起以前为什么聊得那么开心。",
-      theme: "温柔重逢、慢慢举杯、把旧话题聊成新的回忆。",
+      table_theme: "温柔重逢、慢慢举杯、把旧话题聊成新的回忆。",
     },
     {
-      id: "family-garden",
-      name: "Family Garden Table",
-      story:
+      table_id: "family-garden",
+      table_name: "Family Garden Table",
+      table_story:
         "这一桌留给一路陪伴两人成长的家人。很多承诺，其实早在日常照顾里就已经开始。",
-      theme: "家人的见证、安静的骄傲、长久的祝福。",
-    },
-    {
-      id: "glasshouse-colleagues",
-      name: "Glasshouse Colleagues",
-      story:
-        "这一桌属于工作里相互支持的人。今晚暂时放下会议和讯息，只留下举杯和祝福。",
-      theme: "从工作伙伴，到生活重要时刻的见证者。",
-    },
-    {
-      id: "lavender-circle",
-      name: "Lavender Circle",
-      story:
-        "这一桌安排给最懂新人细节的挚友。你们见过他们的犹豫、认真，也见证这份关系慢慢稳定下来。",
-      theme: "亲近、柔软、把祝福说得很具体。",
+      table_theme: "家人的见证、安静的骄傲、长久的祝福。",
     },
   ],
   guests: [
     {
+      guest_id: "G001",
       token: "jason-a7k29x",
-      name: "Jason",
-      type: "longLostFriends",
-      tableId: "chaos-committee",
-      status: "confirmed",
+      guest_name: "Jason",
+      guest_type: "longLostFriends",
+      table_id: "chaos-committee",
+      rsvp_status: "confirmed",
     },
     {
+      guest_id: "G002",
       token: "marcus-f4p81q",
-      name: "Marcus",
-      type: "longLostFriends",
-      tableId: "chaos-committee",
-      status: "confirmed",
+      guest_name: "Marcus",
+      guest_type: "longLostFriends",
+      table_id: "chaos-committee",
+      rsvp_status: "confirmed",
     },
     {
+      guest_id: "G003",
       token: "weijie-n6v42m",
-      name: "Wei Jie",
-      type: "longLostFriends",
-      tableId: "chaos-committee",
-      status: "confirmed",
+      guest_name: "Wei Jie",
+      guest_type: "longLostFriends",
+      table_id: "chaos-committee",
+      rsvp_status: "confirmed",
     },
     {
+      guest_id: "G004",
       token: "kelvin-h8s13b",
-      name: "Kelvin",
-      type: "longLostFriends",
-      tableId: "chaos-committee",
-      status: "confirmed",
+      guest_name: "Kelvin",
+      guest_type: "longLostFriends",
+      table_id: "chaos-committee",
+      rsvp_status: "confirmed",
     },
     {
+      guest_id: "G005",
       token: "amanda-k5r18n",
-      name: "Amanda",
-      type: "closeFriends",
-      tableId: "chaos-committee",
-      status: "confirmed",
+      guest_name: "Amanda",
+      guest_type: "closeFriends",
+      table_id: "chaos-committee",
+      rsvp_status: "confirmed",
     },
     {
+      guest_id: "G006",
       token: "rachel-p2d77u",
-      name: "Rachel",
-      type: "closeFriends",
-      tableId: "chaos-committee",
-      status: "pending",
+      guest_name: "Rachel",
+      guest_type: "closeFriends",
+      table_id: "chaos-committee",
+      rsvp_status: "pending",
     },
     {
-      token: "daniel-z9q20c",
-      name: "Daniel",
-      type: "colleagues",
-      tableId: "chaos-committee",
-      status: "declined",
-    },
-    {
+      guest_id: "G007",
       token: "auntmay-l9p31e",
-      name: "Aunt May",
-      type: "family",
-      tableId: "family-garden",
-      status: "confirmed",
+      guest_name: "Aunt May",
+      guest_type: "family",
+      table_id: "family-garden",
+      rsvp_status: "confirmed",
     },
     {
+      guest_id: "G008",
       token: "uncleben-r3x55t",
-      name: "Uncle Ben",
-      type: "family",
-      tableId: "family-garden",
-      status: "confirmed",
+      guest_name: "Uncle Ben",
+      guest_type: "family",
+      table_id: "family-garden",
+      rsvp_status: "confirmed",
+    },
+  ],
+  messages: [
+    {
+      message_id: "M001",
+      guest_id: "G001",
+      table_id: "chaos-committee",
+      prompt_type: "memory",
+      message: "愿今晚的灯光，照着你们以后的每一天。",
+      approved: true,
     },
     {
-      token: "meilin-y4c62a",
-      name: "Mei Lin",
-      type: "family",
-      tableId: "family-garden",
-      status: "pending",
-    },
-    {
-      token: "sarah-c8m40q",
-      name: "Sarah",
-      type: "colleagues",
-      tableId: "glasshouse-colleagues",
-      status: "confirmed",
-    },
-    {
-      token: "aaron-v7t90s",
-      name: "Aaron",
-      type: "colleagues",
-      tableId: "glasshouse-colleagues",
-      status: "confirmed",
-    },
-    {
-      token: "nadia-b1k72p",
-      name: "Nadia",
-      type: "colleagues",
-      tableId: "glasshouse-colleagues",
-      status: "declined",
-    },
-    {
-      token: "chloe-w6n15d",
-      name: "Chloe",
-      type: "closeFriends",
-      tableId: "lavender-circle",
-      status: "confirmed",
-    },
-    {
-      token: "ethan-m2h48j",
-      name: "Ethan",
-      type: "closeFriends",
-      tableId: "lavender-circle",
-      status: "confirmed",
+      message_id: "M002",
+      guest_id: "G002",
+      table_id: "chaos-committee",
+      prompt_type: "memory",
+      message: "那年一起赶末班车的画面，到现在都还记得。",
+      approved: true,
     },
   ],
   memoryPrompts: [
@@ -214,37 +182,230 @@ const sampleData = {
 };
 
 const token = new URLSearchParams(window.location.search).get("token");
-const currentGuest = sampleData.guests.find((guest) => guest.token === token);
-const currentTable = currentGuest
-  ? sampleData.tables.find((table) => table.id === currentGuest.tableId)
-  : null;
-
-const guestCategoryLabel = document.querySelector("#guest-category-label");
-const personalTitle = document.querySelector("#personal-title");
-const personalMessage = document.querySelector("#personal-message");
-const detailsGrid = document.querySelector("#details-grid");
-const diningSteps = document.querySelector("#dining-steps");
-const tableTitle = document.querySelector("#table-title");
-const tableStory = document.querySelector("#table-story");
-const tableTheme = document.querySelector("#table-theme");
-const memberList = document.querySelector("#member-list");
-const promptList = document.querySelector("#prompt-list");
-const memoryForm = document.querySelector("#memory-form");
-const memoryInput = document.querySelector("#memory-input");
-const memoryConfirmation = document.querySelector("#memory-confirmation");
-const rsvpTitle = document.querySelector("#rsvp-title");
-const rsvpOptions = document.querySelectorAll(".rsvp-option");
-const rsvpFollowup = document.querySelector("#rsvp-followup");
-const revealItems = document.querySelectorAll(".scene-reveal");
+const page = {
+  main: document.querySelector("main"),
+  heroTitle: document.querySelector("#hero-title"),
+  heroDate: document.querySelector(".hero-date"),
+  heroLine: document.querySelector(".hero-line"),
+  guestCategoryLabel: document.querySelector("#guest-category-label"),
+  personalTitle: document.querySelector("#personal-title"),
+  personalMessage: document.querySelector("#personal-message"),
+  detailsGrid: document.querySelector("#details-grid"),
+  diningSteps: document.querySelector("#dining-steps"),
+  tableTitle: document.querySelector("#table-title"),
+  tableStory: document.querySelector("#table-story"),
+  tableTheme: document.querySelector("#table-theme"),
+  memberList: document.querySelector("#member-list"),
+  promptList: document.querySelector("#prompt-list"),
+  memoryForm: document.querySelector("#memory-form"),
+  memoryInput: document.querySelector("#memory-input"),
+  memoryConfirmation: document.querySelector("#memory-confirmation"),
+  memoryPanel: document.querySelector(".memory-panel"),
+  rsvpTitle: document.querySelector("#rsvp-title"),
+  rsvpOptions: document.querySelectorAll(".rsvp-option"),
+  rsvpFollowup: document.querySelector("#rsvp-followup"),
+};
 
 let selectedPrompt = sampleData.memoryPrompts[0];
+let currentGuestName = "";
 
-function formatGuestText(text, guest) {
-  return text.replaceAll("{name}", guest.name);
+function init() {
+  setupReveal();
+
+  if (!token) {
+    renderInvalidInvitation();
+    return;
+  }
+
+  renderLoadingState();
+  loadInvitationData(token);
+}
+
+async function loadInvitationData(invitationToken) {
+  try {
+    const apiData = await fetchInvitationData(invitationToken);
+
+    if (!apiData.success) {
+      renderInvalidInvitation();
+      return;
+    }
+
+    renderInvitation(createViewModelFromApi(apiData));
+  } catch (error) {
+    console.warn("API failed. Using sampleData fallback.", error);
+    const fallbackData = createFallbackApiShape(invitationToken);
+
+    if (!fallbackData.success) {
+      renderInvalidInvitation();
+      return;
+    }
+
+    renderInvitation(createViewModelFromApi(fallbackData));
+  }
+}
+
+async function fetchInvitationData(invitationToken) {
+  const url = `${API_URL}?token=${encodeURIComponent(invitationToken)}`;
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error(`API request failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function createFallbackApiShape(invitationToken) {
+  const guest = sampleData.guests.find((item) => item.token === invitationToken);
+
+  if (!guest) {
+    return {
+      success: false,
+      error: "Invalid invitation link",
+    };
+  }
+
+  const table = sampleData.tables.find((item) => item.table_id === guest.table_id);
+  const confirmedTableMembers = sampleData.guests.filter(
+    (item) => item.table_id === guest.table_id && item.rsvp_status === "confirmed"
+  );
+  const messages = sampleData.messages.filter(
+    (item) => item.table_id === guest.table_id && isApproved(item.approved)
+  );
+
+  return {
+    success: true,
+    guest,
+    table,
+    confirmedTableMembers,
+    messages,
+    settings: sampleData.settings,
+  };
+}
+
+function createViewModelFromApi(apiData) {
+  const guest = sanitizeGuest(apiData.guest || {});
+  const table = apiData.table || {};
+  const settings = normalizeSettings(apiData.settings);
+  const guestName = getFirstValue(guest, ["guest_name", "name"], "Guest");
+  const guestTypeKey = getFirstValue(guest, ["guest_type", "type"], "");
+  const guestType = getGuestTypeCopy(guestTypeKey, guest);
+
+  return {
+    settings,
+    guest,
+    guestName,
+    guestType,
+    table: {
+      name: getFirstValue(table, ["table_name", "name"], "你的餐桌"),
+      story: getFirstValue(table, ["table_story", "story"], ""),
+      theme: getFirstValue(
+        table,
+        ["table_theme", "table_type", "theme"],
+        "重逢、举杯、慢慢聊完没说完的话。"
+      ),
+    },
+    confirmedTableMembers: (apiData.confirmedTableMembers || [])
+      .map(sanitizeGuest)
+      .filter((member) => isConfirmed(member))
+      .filter((member) => !isDeclined(member)),
+    messages: (apiData.messages || [])
+      .filter((message) => isApproved(message.approved))
+      .filter((message) => getFirstValue(message, ["message"], "")),
+    details: createDetails(settings),
+    dining: sampleData.dining,
+    memoryPrompts: sampleData.memoryPrompts,
+  };
+}
+
+function getGuestTypeCopy(type, guest) {
+  const normalizedType = normalize(type).replace(/[-_\s]/g, "");
+  const typeMap = {
+    family: "family",
+    colleagues: "colleagues",
+    colleague: "colleagues",
+    closefriends: "closeFriends",
+    closefriend: "closeFriends",
+    longlostfriends: "longLostFriends",
+    longlostfriend: "longLostFriends",
+  };
+  const typeKey = typeMap[normalizedType];
+
+  const copy =
+    sampleData.guestTypes[typeKey] || {
+      label: "专属邀请",
+      title: "{name}，我们为你准备了这份邀请。",
+      message:
+        "感谢你成为这一天重要的一部分。我们期待在玻璃花房的灯光下与你相见。",
+    };
+
+  return Object.assign({}, copy, {
+    message: getFirstValue(guest, ["personal_message"], copy.message),
+  });
+}
+
+function normalizeSettings(settings) {
+  if (!settings) {
+    return {};
+  }
+
+  if (Array.isArray(settings)) {
+    return settings.reduce((items, item) => {
+      if (item.key) {
+        items[item.key] = item.value;
+      }
+
+      return items;
+    }, {});
+  }
+
+  return settings;
+}
+
+function createDetails(settings) {
+  return [
+    {
+      label: "日期",
+      value: settings.wedding_date || settings.date || "2026年12月5日",
+      note: settings.date_note || "星期六，晚间婚礼",
+    },
+    {
+      label: "时间",
+      value: settings.wedding_time || "18:00 入场 · 18:45 仪式",
+      note: settings.time_note || "花园灯光会在傍晚慢慢亮起",
+    },
+    {
+      label: "地点",
+      value: settings.venue || "玻璃花房花园，吉隆坡",
+      note: settings.venue_note || "户外花园与透明玻璃结构",
+    },
+    {
+      label: "着装",
+      value: settings.dress_code || "浅色正式着装",
+      note:
+        settings.dress_code_note ||
+        "象牙白、柔薰衣草、尤加利绿或香槟金细节皆可",
+    },
+  ];
+}
+
+function renderLoadingState() {
+  page.guestCategoryLabel.textContent = "正在读取邀请";
+  page.personalTitle.textContent = "正在为你打开专属婚礼邀请。";
+  page.personalMessage.textContent =
+    "请稍等一下，我们正在从宾客名单中确认你的邀请信息。";
+  page.detailsGrid.innerHTML = "";
+  page.diningSteps.innerHTML = "";
+  page.tableTitle.textContent = "";
+  page.tableStory.textContent = "";
+  page.tableTheme.textContent = "";
+  page.memberList.innerHTML = "";
+  page.promptList.innerHTML = "";
+  page.rsvpFollowup.innerHTML = `<p class="rsvp-placeholder">邀请资料载入中。</p>`;
 }
 
 function renderInvalidInvitation() {
-  document.querySelector("main").innerHTML = `
+  page.main.innerHTML = `
     <section class="scene invitation-scene" aria-labelledby="invalid-title">
       <div class="scene-inner">
         <div class="personal-panel scene-reveal is-visible">
@@ -261,18 +422,46 @@ function renderInvalidInvitation() {
   `;
 }
 
-function renderPersonalInvitation() {
-  const guestType = sampleData.guestTypes[currentGuest.type];
+function renderInvitation(viewModel) {
+  currentGuestName = viewModel.guestName;
+  selectedPrompt = viewModel.memoryPrompts[0];
 
-  guestCategoryLabel.textContent = guestType.label;
-  personalTitle.textContent = formatGuestText(guestType.title, currentGuest);
-  personalMessage.textContent = formatGuestText(guestType.message, currentGuest);
+  renderSettings(viewModel.settings);
+  renderPersonalInvitation(viewModel);
+  renderDetails(viewModel.details);
+  renderDining(viewModel.dining);
+  renderTable(viewModel.table);
+  renderMembers(viewModel.confirmedTableMembers);
+  renderApprovedMessages(viewModel.messages);
+  renderMemoryPrompts(viewModel.memoryPrompts);
+  setupMemoryForm();
+  setupRsvp();
 }
 
-function renderDetails() {
-  detailsGrid.innerHTML = "";
+function renderSettings(settings) {
+  page.heroTitle.textContent = settings.couple || "Louis & Joyce";
+  page.heroDate.textContent = settings.wedding_date || settings.date || "5 December 2026";
+  page.heroLine.textContent =
+    settings.hero_line ||
+    "透明花房、晚风、暖灯，还有我们想认真款待的每一位客人。";
+}
 
-  sampleData.details.forEach((item) => {
+function renderPersonalInvitation(viewModel) {
+  page.guestCategoryLabel.textContent = viewModel.guestType.label;
+  page.personalTitle.textContent = formatGuestText(
+    viewModel.guestType.title,
+    viewModel.guestName
+  );
+  page.personalMessage.textContent = formatGuestText(
+    viewModel.guestType.message,
+    viewModel.guestName
+  );
+}
+
+function renderDetails(details) {
+  page.detailsGrid.innerHTML = "";
+
+  details.forEach((item) => {
     const detail = document.createElement("article");
     detail.className = "detail-item";
     detail.innerHTML = `
@@ -280,14 +469,14 @@ function renderDetails() {
       <strong>${item.value}</strong>
       <p>${item.note}</p>
     `;
-    detailsGrid.appendChild(detail);
+    page.detailsGrid.appendChild(detail);
   });
 }
 
-function renderDining() {
-  diningSteps.innerHTML = "";
+function renderDining(dining) {
+  page.diningSteps.innerHTML = "";
 
-  sampleData.dining.forEach((item) => {
+  dining.forEach((item) => {
     const step = document.createElement("article");
     step.className = "dining-step";
     step.innerHTML = `
@@ -295,38 +484,54 @@ function renderDining() {
       <strong>${item.title}</strong>
       <p>${item.note}</p>
     `;
-    diningSteps.appendChild(step);
+    page.diningSteps.appendChild(step);
   });
 }
 
-function renderTable() {
-  tableTitle.textContent = currentTable.name;
-  tableStory.textContent = currentTable.story;
-  tableTheme.textContent = currentTable.theme;
+function renderTable(table) {
+  page.tableTitle.textContent = table.name;
+  page.tableStory.textContent = table.story;
+  page.tableTheme.textContent = table.theme;
 }
 
-function renderMembers() {
-  memberList.innerHTML = "";
+function renderMembers(members) {
+  page.memberList.innerHTML = "";
 
-  sampleData.guests
-    .filter(
-      (guest) =>
-        guest.tableId === currentGuest.tableId && guest.status === "confirmed"
-    )
-    .forEach((guest) => {
-      const item = document.createElement("li");
-      item.innerHTML = `
-        <strong>${guest.name}</strong>
-        <span>已确认出席</span>
-      `;
-      memberList.appendChild(item);
-    });
+  members.forEach((member) => {
+    const item = document.createElement("li");
+    item.innerHTML = `
+      <strong>${getFirstValue(member, ["guest_name", "name"], "Guest")}</strong>
+      <span>已确认出席</span>
+    `;
+    page.memberList.appendChild(item);
+  });
 }
 
-function renderMemoryPrompts() {
-  promptList.innerHTML = "";
+function renderApprovedMessages(messages) {
+  const existingList = document.querySelector("#approved-message-list");
 
-  sampleData.memoryPrompts.forEach((prompt, index) => {
+  if (existingList) {
+    existingList.remove();
+  }
+
+  if (!messages.length) {
+    return;
+  }
+
+  const list = document.createElement("div");
+  list.id = "approved-message-list";
+  list.className = "memory-confirmation";
+  list.innerHTML = messages
+    .map((item) => `<p>${getFirstValue(item, ["message"], "")}</p>`)
+    .join("");
+
+  page.memoryPanel.insertBefore(list, page.memoryForm);
+}
+
+function renderMemoryPrompts(prompts) {
+  page.promptList.innerHTML = "";
+
+  prompts.forEach((prompt, index) => {
     const button = document.createElement("button");
     button.className = "prompt-button";
     button.type = "button";
@@ -338,20 +543,20 @@ function renderMemoryPrompts() {
 
     button.addEventListener("click", () => {
       selectedPrompt = prompt;
-      promptList
+      page.promptList
         .querySelectorAll(".prompt-button")
         .forEach((option) => option.classList.remove("is-selected"));
       button.classList.add("is-selected");
-      memoryInput.placeholder = prompt;
+      page.memoryInput.placeholder = prompt;
     });
 
-    promptList.appendChild(button);
+    page.promptList.appendChild(button);
   });
 }
 
 function renderRsvpFollowup(status) {
   if (status === "attending") {
-    rsvpFollowup.innerHTML = `
+    page.rsvpFollowup.innerHTML = `
       <form class="attending-form" id="attending-form">
         <div class="field">
           <label for="guest-count">出席人数</label>
@@ -381,9 +586,9 @@ function renderRsvpFollowup(status) {
 
     attendingForm.addEventListener("submit", (event) => {
       event.preventDefault();
-      rsvpFollowup.innerHTML = `
+      page.rsvpFollowup.innerHTML = `
         <p class="rsvp-message">
-          谢谢你，${currentGuest.name}。我们已经为你记录出席回复，也会根据你的备注安排晚宴细节。
+          谢谢你，${currentGuestName}。我们已经为你记录出席回复，也会根据你的备注安排晚宴细节。
         </p>
       `;
     });
@@ -391,7 +596,7 @@ function renderRsvpFollowup(status) {
   }
 
   if (status === "unsure") {
-    rsvpFollowup.innerHTML = `
+    page.rsvpFollowup.innerHTML = `
       <p class="rsvp-message">
         我们会先为你保留座位。<br />
         仍然希望十二月能和你一起庆祝。
@@ -400,7 +605,7 @@ function renderRsvpFollowup(status) {
     return;
   }
 
-  rsvpFollowup.innerHTML = `
+  page.rsvpFollowup.innerHTML = `
     <p class="rsvp-message">
       我们会想念你在场的样子。<br />
       等婚礼之后，我们再找一个时间好好见面。
@@ -409,11 +614,14 @@ function renderRsvpFollowup(status) {
 }
 
 function setupRsvp() {
-  rsvpTitle.textContent = `${currentGuest.name}，你会来到花房，和我们一起庆祝吗？`;
+  page.rsvpTitle.textContent = `${currentGuestName}，你会来到花房，和我们一起庆祝吗？`;
+  page.rsvpFollowup.innerHTML =
+    `<p class="rsvp-placeholder">请选择一个回复，我们会为你安排后续细节。</p>`;
 
-  rsvpOptions.forEach((button) => {
+  page.rsvpOptions.forEach((button) => {
+    button.classList.remove("is-selected");
     button.addEventListener("click", () => {
-      rsvpOptions.forEach((option) => option.classList.remove("is-selected"));
+      page.rsvpOptions.forEach((option) => option.classList.remove("is-selected"));
       button.classList.add("is-selected");
       renderRsvpFollowup(button.dataset.rsvp);
     });
@@ -421,24 +629,26 @@ function setupRsvp() {
 }
 
 function setupMemoryForm() {
-  memoryInput.placeholder = selectedPrompt;
+  page.memoryInput.placeholder = selectedPrompt;
 
-  memoryForm.addEventListener("submit", (event) => {
+  page.memoryForm.addEventListener("submit", (event) => {
     event.preventDefault();
 
-    const memory = memoryInput.value.trim();
+    const memory = page.memoryInput.value.trim();
 
     if (!memory) {
-      memoryInput.focus();
+      page.memoryInput.focus();
       return;
     }
 
-    memoryConfirmation.textContent = `已保存：${selectedPrompt} — ${memory}`;
-    memoryInput.value = "";
+    page.memoryConfirmation.textContent = `已保存：${selectedPrompt} — ${memory}`;
+    page.memoryInput.value = "";
   });
 }
 
 function setupReveal() {
+  const revealItems = document.querySelectorAll(".scene-reveal");
+
   if (!("IntersectionObserver" in window)) {
     revealItems.forEach((item) => item.classList.add("is-visible"));
     return;
@@ -459,21 +669,48 @@ function setupReveal() {
   revealItems.forEach((item) => observer.observe(item));
 }
 
-function renderInvitation() {
-  if (!currentGuest || !currentTable) {
-    renderInvalidInvitation();
-    return;
-  }
-
-  renderPersonalInvitation();
-  renderDetails();
-  renderDining();
-  renderTable();
-  renderMembers();
-  renderMemoryPrompts();
-  setupMemoryForm();
-  setupRsvp();
-  setupReveal();
+function sanitizeGuest(guest) {
+  const publicGuest = Object.assign({}, guest);
+  delete publicGuest.whatsapp;
+  return publicGuest;
 }
 
-renderInvitation();
+function isDeclined(guest) {
+  const rsvpStatus = normalize(getFirstValue(guest, ["rsvp_status"], ""));
+  const invitationStatus = normalize(getFirstValue(guest, ["invitation_status"], ""));
+  return (
+    rsvpStatus === "declined" ||
+    rsvpStatus === "unable" ||
+    invitationStatus === "declined"
+  );
+}
+
+function isConfirmed(guest) {
+  const rsvpStatus = normalize(getFirstValue(guest, ["rsvp_status"], "confirmed"));
+  return rsvpStatus === "confirmed";
+}
+
+function isApproved(value) {
+  const normalized = normalize(value);
+  return normalized === "true" || normalized === "yes" || normalized === "approved";
+}
+
+function formatGuestText(text, name) {
+  return text.replaceAll("{name}", name);
+}
+
+function getFirstValue(item, keys, fallback) {
+  for (const key of keys) {
+    if (item[key] !== undefined && item[key] !== null && item[key] !== "") {
+      return item[key];
+    }
+  }
+
+  return fallback;
+}
+
+function normalize(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+init();
