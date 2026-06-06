@@ -1,33 +1,31 @@
-const wedding = {
-  couple: "Louis & Joyce",
-  date: "5 December 2026",
-  guestCount: "200 pax",
-  guest: {
-    name: "Jason",
-    category: "longLostFriends",
+const sampleData = {
+  wedding: {
+    couple: "Louis & Joyce",
+    date: "5 December 2026",
+    guestCount: "200 pax",
   },
-  invitationCopy: {
+  guestTypes: {
     family: {
       label: "给家人",
-      title: "谢谢你一路把我们放在心上。",
+      title: "{name}，谢谢你一路把我们放在心上。",
       message:
         "这一天对我们很重要，因为你会在场。我们想在玻璃花房的灯光里，好好向你说一声谢谢，也请你见证我们成为彼此的家人。",
     },
     colleagues: {
       label: "给同事",
-      title: "很开心能把生活里重要的一面，也分享给你。",
+      title: "{name}，很开心能把生活里重要的一面，也分享给你。",
       message:
         "平日里我们一起处理工作，这一次想邀请你来到更柔软的场景。愿这个晚上没有日程压力，只有祝福、晚风和一顿认真准备的晚餐。",
     },
     closeFriends: {
       label: "给挚友",
-      title: "有些朋友，不需要太多解释就懂。",
+      title: "{name}，有些朋友，不需要太多解释就懂。",
       message:
         "我们想让你坐在离这一刻很近的地方。谢谢你见过我们的普通日子，也愿意来见证我们最郑重的一天。",
     },
     longLostFriends: {
       label: "给久别重逢的朋友",
-      title: "Jason，这一晚也想把你带回我们身边。",
+      title: "{name}，这一晚也想把你带回我们身边。",
       message:
         "婚礼是这一晚的主角，但我们也悄悄期待那些久违的拥抱和一句“好久不见”。你的位置已经留好，希望十二月能在花房灯光下重新见到你。",
     },
@@ -71,19 +69,142 @@ const wedding = {
       note: "仪式与晚宴之后，大家可以自由取用甜点，慢慢走动，也慢慢重逢。",
     },
   ],
-  table: {
-    name: "The Chaos Committee",
-    story:
-      "这一桌为久未见面的朋友而设。你们不一定每天联系，但只要坐下来，很快就会想起以前为什么聊得那么开心。",
-    theme: "温柔重逢、慢慢举杯、把旧话题聊成新的回忆。",
-  },
-  tableMembers: [
-    { name: "Marcus", status: "confirmed", note: "已确认出席" },
-    { name: "Wei Jie", status: "confirmed", note: "已确认出席" },
-    { name: "Kelvin", status: "confirmed", note: "已确认出席" },
-    { name: "Amanda", status: "confirmed", note: "已确认出席" },
-    { name: "Rachel", status: "pending", note: "待确认" },
-    { name: "Daniel", status: "declined", note: "无法出席" },
+  tables: [
+    {
+      id: "chaos-committee",
+      name: "The Chaos Committee",
+      story:
+        "这一桌为久未见面的朋友而设。你们不一定每天联系，但只要坐下来，很快就会想起以前为什么聊得那么开心。",
+      theme: "温柔重逢、慢慢举杯、把旧话题聊成新的回忆。",
+    },
+    {
+      id: "family-garden",
+      name: "Family Garden Table",
+      story:
+        "这一桌留给一路陪伴两人成长的家人。很多承诺，其实早在日常照顾里就已经开始。",
+      theme: "家人的见证、安静的骄傲、长久的祝福。",
+    },
+    {
+      id: "glasshouse-colleagues",
+      name: "Glasshouse Colleagues",
+      story:
+        "这一桌属于工作里相互支持的人。今晚暂时放下会议和讯息，只留下举杯和祝福。",
+      theme: "从工作伙伴，到生活重要时刻的见证者。",
+    },
+    {
+      id: "lavender-circle",
+      name: "Lavender Circle",
+      story:
+        "这一桌安排给最懂新人细节的挚友。你们见过他们的犹豫、认真，也见证这份关系慢慢稳定下来。",
+      theme: "亲近、柔软、把祝福说得很具体。",
+    },
+  ],
+  guests: [
+    {
+      token: "jason-a7k29x",
+      name: "Jason",
+      type: "longLostFriends",
+      tableId: "chaos-committee",
+      status: "confirmed",
+    },
+    {
+      token: "marcus-f4p81q",
+      name: "Marcus",
+      type: "longLostFriends",
+      tableId: "chaos-committee",
+      status: "confirmed",
+    },
+    {
+      token: "weijie-n6v42m",
+      name: "Wei Jie",
+      type: "longLostFriends",
+      tableId: "chaos-committee",
+      status: "confirmed",
+    },
+    {
+      token: "kelvin-h8s13b",
+      name: "Kelvin",
+      type: "longLostFriends",
+      tableId: "chaos-committee",
+      status: "confirmed",
+    },
+    {
+      token: "amanda-k5r18n",
+      name: "Amanda",
+      type: "closeFriends",
+      tableId: "chaos-committee",
+      status: "confirmed",
+    },
+    {
+      token: "rachel-p2d77u",
+      name: "Rachel",
+      type: "closeFriends",
+      tableId: "chaos-committee",
+      status: "pending",
+    },
+    {
+      token: "daniel-z9q20c",
+      name: "Daniel",
+      type: "colleagues",
+      tableId: "chaos-committee",
+      status: "declined",
+    },
+    {
+      token: "auntmay-l9p31e",
+      name: "Aunt May",
+      type: "family",
+      tableId: "family-garden",
+      status: "confirmed",
+    },
+    {
+      token: "uncleben-r3x55t",
+      name: "Uncle Ben",
+      type: "family",
+      tableId: "family-garden",
+      status: "confirmed",
+    },
+    {
+      token: "meilin-y4c62a",
+      name: "Mei Lin",
+      type: "family",
+      tableId: "family-garden",
+      status: "pending",
+    },
+    {
+      token: "sarah-c8m40q",
+      name: "Sarah",
+      type: "colleagues",
+      tableId: "glasshouse-colleagues",
+      status: "confirmed",
+    },
+    {
+      token: "aaron-v7t90s",
+      name: "Aaron",
+      type: "colleagues",
+      tableId: "glasshouse-colleagues",
+      status: "confirmed",
+    },
+    {
+      token: "nadia-b1k72p",
+      name: "Nadia",
+      type: "colleagues",
+      tableId: "glasshouse-colleagues",
+      status: "declined",
+    },
+    {
+      token: "chloe-w6n15d",
+      name: "Chloe",
+      type: "closeFriends",
+      tableId: "lavender-circle",
+      status: "confirmed",
+    },
+    {
+      token: "ethan-m2h48j",
+      name: "Ethan",
+      type: "closeFriends",
+      tableId: "lavender-circle",
+      status: "confirmed",
+    },
   ],
   memoryPrompts: [
     "你仍然记得的一段回忆是什么？",
@@ -91,6 +212,12 @@ const wedding = {
     "你想对即将步入婚姻的 Louis & Joyce 说什么？",
   ],
 };
+
+const token = new URLSearchParams(window.location.search).get("token");
+const currentGuest = sampleData.guests.find((guest) => guest.token === token);
+const currentTable = currentGuest
+  ? sampleData.tables.find((table) => table.id === currentGuest.tableId)
+  : null;
 
 const guestCategoryLabel = document.querySelector("#guest-category-label");
 const personalTitle = document.querySelector("#personal-title");
@@ -105,24 +232,47 @@ const promptList = document.querySelector("#prompt-list");
 const memoryForm = document.querySelector("#memory-form");
 const memoryInput = document.querySelector("#memory-input");
 const memoryConfirmation = document.querySelector("#memory-confirmation");
+const rsvpTitle = document.querySelector("#rsvp-title");
 const rsvpOptions = document.querySelectorAll(".rsvp-option");
 const rsvpFollowup = document.querySelector("#rsvp-followup");
 const revealItems = document.querySelectorAll(".scene-reveal");
 
-let selectedPrompt = wedding.memoryPrompts[0];
+let selectedPrompt = sampleData.memoryPrompts[0];
+
+function formatGuestText(text, guest) {
+  return text.replaceAll("{name}", guest.name);
+}
+
+function renderInvalidInvitation() {
+  document.querySelector("main").innerHTML = `
+    <section class="scene invitation-scene" aria-labelledby="invalid-title">
+      <div class="scene-inner">
+        <div class="personal-panel scene-reveal is-visible">
+          <p class="kicker">邀请链接无效</p>
+          <h2 id="invalid-title">我们暂时无法找到这份专属邀请。</h2>
+          <p>
+            这个链接可能缺少邀请码，或邀请码并不在宾客名单中。
+            请回到原本收到的邀请讯息重新打开，或联系 Louis & Joyce 确认你的专属链接。
+          </p>
+          <p class="personal-signature">Louis & Joyce</p>
+        </div>
+      </div>
+    </section>
+  `;
+}
 
 function renderPersonalInvitation() {
-  const categoryCopy = wedding.invitationCopy[wedding.guest.category];
+  const guestType = sampleData.guestTypes[currentGuest.type];
 
-  guestCategoryLabel.textContent = categoryCopy.label;
-  personalTitle.textContent = categoryCopy.title;
-  personalMessage.textContent = categoryCopy.message;
+  guestCategoryLabel.textContent = guestType.label;
+  personalTitle.textContent = formatGuestText(guestType.title, currentGuest);
+  personalMessage.textContent = formatGuestText(guestType.message, currentGuest);
 }
 
 function renderDetails() {
   detailsGrid.innerHTML = "";
 
-  wedding.details.forEach((item) => {
+  sampleData.details.forEach((item) => {
     const detail = document.createElement("article");
     detail.className = "detail-item";
     detail.innerHTML = `
@@ -137,7 +287,7 @@ function renderDetails() {
 function renderDining() {
   diningSteps.innerHTML = "";
 
-  wedding.dining.forEach((item) => {
+  sampleData.dining.forEach((item) => {
     const step = document.createElement("article");
     step.className = "dining-step";
     step.innerHTML = `
@@ -150,21 +300,24 @@ function renderDining() {
 }
 
 function renderTable() {
-  tableTitle.textContent = wedding.table.name;
-  tableStory.textContent = wedding.table.story;
-  tableTheme.textContent = wedding.table.theme;
+  tableTitle.textContent = currentTable.name;
+  tableStory.textContent = currentTable.story;
+  tableTheme.textContent = currentTable.theme;
 }
 
 function renderMembers() {
   memberList.innerHTML = "";
 
-  wedding.tableMembers
-    .filter((member) => member.status === "confirmed")
-    .forEach((member) => {
+  sampleData.guests
+    .filter(
+      (guest) =>
+        guest.tableId === currentGuest.tableId && guest.status === "confirmed"
+    )
+    .forEach((guest) => {
       const item = document.createElement("li");
       item.innerHTML = `
-        <strong>${member.name}</strong>
-        <span>${member.note}</span>
+        <strong>${guest.name}</strong>
+        <span>已确认出席</span>
       `;
       memberList.appendChild(item);
     });
@@ -173,7 +326,7 @@ function renderMembers() {
 function renderMemoryPrompts() {
   promptList.innerHTML = "";
 
-  wedding.memoryPrompts.forEach((prompt, index) => {
+  sampleData.memoryPrompts.forEach((prompt, index) => {
     const button = document.createElement("button");
     button.className = "prompt-button";
     button.type = "button";
@@ -230,7 +383,7 @@ function renderRsvpFollowup(status) {
       event.preventDefault();
       rsvpFollowup.innerHTML = `
         <p class="rsvp-message">
-          谢谢你，${wedding.guest.name}。我们已经为你记录出席回复，也会根据你的备注安排晚宴细节。
+          谢谢你，${currentGuest.name}。我们已经为你记录出席回复，也会根据你的备注安排晚宴细节。
         </p>
       `;
     });
@@ -256,6 +409,8 @@ function renderRsvpFollowup(status) {
 }
 
 function setupRsvp() {
+  rsvpTitle.textContent = `${currentGuest.name}，你会来到花房，和我们一起庆祝吗？`;
+
   rsvpOptions.forEach((button) => {
     button.addEventListener("click", () => {
       rsvpOptions.forEach((option) => option.classList.remove("is-selected"));
@@ -304,12 +459,21 @@ function setupReveal() {
   revealItems.forEach((item) => observer.observe(item));
 }
 
-renderPersonalInvitation();
-renderDetails();
-renderDining();
-renderTable();
-renderMembers();
-renderMemoryPrompts();
-setupMemoryForm();
-setupRsvp();
-setupReveal();
+function renderInvitation() {
+  if (!currentGuest || !currentTable) {
+    renderInvalidInvitation();
+    return;
+  }
+
+  renderPersonalInvitation();
+  renderDetails();
+  renderDining();
+  renderTable();
+  renderMembers();
+  renderMemoryPrompts();
+  setupMemoryForm();
+  setupRsvp();
+  setupReveal();
+}
+
+renderInvitation();
