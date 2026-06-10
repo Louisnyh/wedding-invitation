@@ -123,9 +123,10 @@ function doPost(e) {
   try {
     const data = parsePostData(e);
     const token = normalize(data.token);
+    const guestId = normalize(data.guest_id);
     const rsvpStatus = normalizeRsvpStatus(data.rsvp_status);
 
-    if (!token || !rsvpStatus) {
+    if (!token || !guestId || !rsvpStatus) {
       return jsonResponse({
         success: false,
         error: "Invalid RSVP response",
@@ -145,6 +146,13 @@ function doPost(e) {
       return jsonResponse({
         success: false,
         error: "Invalid invitation link",
+      });
+    }
+
+    if (normalize(guestLookup.guest.guest_id) !== guestId) {
+      return jsonResponse({
+        success: false,
+        error: "Guest ID does not match invitation token",
       });
     }
 
@@ -173,7 +181,6 @@ function doPost(e) {
     return jsonResponse({
       success: true,
       message: "RSVP saved",
-      rsvp_status: savedResponse.rsvp_status,
     });
   } catch (error) {
     return jsonResponse({
@@ -209,23 +216,23 @@ function readSettings(spreadsheet, sheetName) {
 /**
  * Reads POST data from the website.
  *
- * The frontend sends form-style data because it is the most reliable format
- * for a static site calling a Google Apps Script Web App.
+ * The frontend sends JSON.stringify(payload), so the main path reads
+ * e.postData.contents and parses it as JSON.
  */
 function parsePostData(e) {
+  if (e && e.postData && e.postData.contents) {
+    try {
+      return JSON.parse(e.postData.contents);
+    } catch (error) {
+      return parseFormEncodedText(e.postData.contents);
+    }
+  }
+
   if (e && e.parameter && Object.keys(e.parameter).length) {
     return Object.assign({}, e.parameter);
   }
 
-  if (!e || !e.postData || !e.postData.contents) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(e.postData.contents);
-  } catch (error) {
-    return parseFormEncodedText(e.postData.contents);
-  }
+  return {};
 }
 
 /**
@@ -359,10 +366,10 @@ function normalizeRsvpStatus(value) {
   }
 
   if (
-    ["unsure", "not sure", "not_sure", "maybe", "pending", "暂时不确定", "还不确定"]
+    ["unsure", "not sure", "not_sure", "maybe", "暂时不确定", "还不确定"]
       .indexOf(status) !== -1
   ) {
-    return "pending";
+    return "maybe";
   }
 
   if (
