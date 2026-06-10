@@ -15,6 +15,7 @@ const SPREADSHEET_ID = "1bvo6l0_4_MNdVqgSIbgnnR1uwIrrDgPLmAiGGDke3og";
 const SHEET_NAMES = {
   guests: "Guests",
   tables: "Tables",
+  rsvp: "RSVP",
   messages: "Messages",
   settings: "Settings",
 };
@@ -58,7 +59,7 @@ function doGet(e) {
 
     const guest = guests.find((row) => normalize(row.token) === token);
 
-    if (!guest || isDeclinedGuest(guest)) {
+    if (!guest) {
       return jsonResponse({
         success: false,
         error: "Invalid invitation link",
@@ -104,6 +105,86 @@ function doGet(e) {
 }
 
 /**
+ * RSVP save endpoint.
+ *
+ * The website sends a POST request here when a guest chooses:
+ * - 会出席
+ * - 暂时不确定
+ * - 无法出席
+ *
+ * This function:
+ * 1. Adds a new row to the RSVP sheet.
+ * 2. Updates the matching guest row in the Guests sheet.
+ *
+ * @param {Object} e Apps Script event object containing submitted form data.
+ * @return {ContentService.TextOutput} JSON response.
+ */
+function doPost(e) {
+  try {
+    const data = parsePostData(e);
+    const token = normalize(data.token);
+    const rsvpStatus = normalizeRsvpStatus(data.rsvp_status);
+
+    if (!token || !rsvpStatus) {
+      return jsonResponse({
+        success: false,
+        error: "Invalid RSVP response",
+      });
+    }
+
+    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const guestsSheet = spreadsheet.getSheetByName(SHEET_NAMES.guests);
+
+    if (!guestsSheet) {
+      throw new Error("Missing sheet: " + SHEET_NAMES.guests);
+    }
+
+    const guestLookup = findGuestRowByToken(guestsSheet, token);
+
+    if (!guestLookup) {
+      return jsonResponse({
+        success: false,
+        error: "Invalid invitation link",
+      });
+    }
+
+    const savedResponse = {
+      response_id: Utilities.getUuid(),
+      timestamp: new Date(),
+      guest_id: guestLookup.guest.guest_id,
+      token: guestLookup.guest.token,
+      rsvp_status: rsvpStatus,
+      pax_count: cleanPaxCount(data.pax_count, rsvpStatus),
+      dietary_notes: cleanText(data.dietary_notes),
+      special_notes: cleanText(data.special_notes),
+    };
+
+    // The lock prevents two quick submissions from writing over each other.
+    const lock = LockService.getScriptLock();
+    lock.waitLock(10000);
+
+    try {
+      appendRsvpResponse(spreadsheet, savedResponse);
+      updateGuestRsvp(guestsSheet, guestLookup.rowNumber, savedResponse);
+    } finally {
+      lock.releaseLock();
+    }
+
+    return jsonResponse({
+      success: true,
+      message: "RSVP saved",
+      rsvp_status: savedResponse.rsvp_status,
+    });
+  } catch (error) {
+    return jsonResponse({
+      success: false,
+      error: "Server error",
+      message: error.message,
+    });
+  }
+}
+
+/**
  * Reads the Settings sheet and converts key/value rows into one object.
  *
  * Example sheet:
@@ -123,6 +204,203 @@ function readSettings(spreadsheet, sheetName) {
 
     return settings;
   }, {});
+}
+
+/**
+ * Reads POST data from the website.
+ *
+ * The frontend sends form-style data because it is the most reliable format
+ * for a static site calling a Google Apps Script Web App.
+ */
+function parsePostData(e) {
+  if (e && e.parameter && Object.keys(e.parameter).length) {
+    return Object.assign({}, e.parameter);
+  }
+
+  if (!e || !e.postData || !e.postData.contents) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(e.postData.contents);
+  } catch (error) {
+    return parseFormEncodedText(e.postData.contents);
+  }
+}
+
+/**
+ * Converts text like "token=abc&rsvp_status=confirmed" into an object.
+ */
+function parseFormEncodedText(text) {
+  return String(text || "")
+    .split("&")
+    .reduce((data, pair) => {
+      const parts = pair.split("=");
+      const key = decodeFormValue(parts[0]);
+      const value = decodeFormValue(parts.slice(1).join("="));
+
+      if (key) {
+        data[key] = value;
+      }
+
+      return data;
+    }, {});
+}
+
+function decodeFormValue(value) {
+  return decodeURIComponent(String(value || "").replace(/\+/g, " "));
+}
+
+/**
+ * Finds the guest row number in the Guests sheet by token.
+ *
+ * Apps Script rows start at 1, so the first data row is row 2.
+ */
+function findGuestRowByToken(sheet, token) {
+  const values = sheet.getDataRange().getValues();
+
+  if (values.length < 2) {
+    return null;
+  }
+
+  const headers = values[0].map((header) => normalizeHeader(header));
+  const tokenColumn = headers.indexOf("token");
+
+  if (tokenColumn === -1) {
+    throw new Error("Missing column in Guests: token");
+  }
+
+  for (let index = 1; index < values.length; index += 1) {
+    if (normalize(values[index][tokenColumn]) === token) {
+      return {
+        guest: rowToObject(headers, values[index]),
+        rowNumber: index + 1,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Adds a fresh RSVP record to the RSVP sheet.
+ */
+function appendRsvpResponse(spreadsheet, responseData) {
+  const sheet = spreadsheet.getSheetByName(SHEET_NAMES.rsvp);
+
+  if (!sheet) {
+    throw new Error("Missing sheet: " + SHEET_NAMES.rsvp);
+  }
+
+  const headers = sheet
+    .getRange(1, 1, 1, sheet.getLastColumn())
+    .getValues()[0]
+    .map((header) => normalizeHeader(header));
+
+  const row = headers.map((header) => {
+    if (responseData[header] !== undefined) {
+      return responseData[header];
+    }
+
+    return "";
+  });
+
+  sheet.appendRow(row);
+}
+
+/**
+ * Updates the latest RSVP details back into the Guests sheet.
+ */
+function updateGuestRsvp(sheet, rowNumber, responseData) {
+  const headers = sheet
+    .getRange(1, 1, 1, sheet.getLastColumn())
+    .getValues()[0]
+    .map((header) => normalizeHeader(header));
+
+  setCellByHeader(sheet, rowNumber, headers, "rsvp_status", responseData.rsvp_status);
+  setCellByHeader(sheet, rowNumber, headers, "pax_count", responseData.pax_count);
+  setCellByHeader(
+    sheet,
+    rowNumber,
+    headers,
+    "dietary_notes",
+    responseData.dietary_notes
+  );
+  setCellByHeader(
+    sheet,
+    rowNumber,
+    headers,
+    "special_notes",
+    responseData.special_notes
+  );
+}
+
+/**
+ * Updates one cell by column name so the sheet columns can be reordered later.
+ */
+function setCellByHeader(sheet, rowNumber, headers, headerName, value) {
+  const columnIndex = headers.indexOf(headerName);
+
+  if (columnIndex === -1) {
+    throw new Error("Missing column in Guests: " + headerName);
+  }
+
+  sheet.getRange(rowNumber, columnIndex + 1).setValue(value);
+}
+
+/**
+ * Converts button/form values into the statuses used by the Guests sheet.
+ */
+function normalizeRsvpStatus(value) {
+  const status = normalize(value);
+
+  if (["attending", "attend", "confirmed", "yes", "会出席"].indexOf(status) !== -1) {
+    return "confirmed";
+  }
+
+  if (
+    ["unsure", "not sure", "not_sure", "maybe", "pending", "暂时不确定", "还不确定"]
+      .indexOf(status) !== -1
+  ) {
+    return "pending";
+  }
+
+  if (
+    ["unable", "cannot attend", "cannot_attend", "declined", "no", "无法出席"]
+      .indexOf(status) !== -1
+  ) {
+    return "declined";
+  }
+
+  return "";
+}
+
+/**
+ * Attending guests need at least 1 pax. Other statuses do not reserve a count.
+ */
+function cleanPaxCount(value, rsvpStatus) {
+  if (rsvpStatus === "declined") {
+    return 0;
+  }
+
+  if (rsvpStatus !== "confirmed") {
+    return "";
+  }
+
+  const paxCount = parseInt(value, 10);
+
+  if (isNaN(paxCount) || paxCount < 1) {
+    return 1;
+  }
+
+  return paxCount;
+}
+
+/**
+ * Keeps free-text notes tidy before saving them into the spreadsheet.
+ */
+function cleanText(value) {
+  return String(value || "").trim().slice(0, 500);
 }
 
 /**
@@ -203,7 +481,7 @@ function removePrivateGuestFields(guest) {
 }
 
 /**
- * A declined guest should not be returned by the API.
+ * A declined guest should not appear inside the public table member list.
  */
 function isDeclinedGuest(guest) {
   return (
