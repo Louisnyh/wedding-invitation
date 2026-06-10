@@ -20,6 +20,8 @@ const SHEET_NAMES = {
   settings: "Settings",
 };
 
+const INVITE_URL_BASE = "https://louisnyh.github.io/wedding-invitation/?token=";
+
 /**
  * Returns JSON with the correct content type.
  *
@@ -211,6 +213,103 @@ function readSettings(spreadsheet, sheetName) {
 
     return settings;
   }, {});
+}
+
+/**
+ * Manual utility: generate missing guest tokens and invitation URLs.
+ *
+ * How to use:
+ * 1. Open this Apps Script project.
+ * 2. Select `generateMissingGuestTokensAndInviteUrls` from the function list.
+ * 3. Click Run.
+ *
+ * Important:
+ * - This function only updates Guests rows where `token` is blank.
+ * - It never overwrites an existing token.
+ * - Tokens are random and are not based on guest names.
+ */
+function generateMissingGuestTokensAndInviteUrls() {
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(SHEET_NAMES.guests);
+
+  if (!sheet) {
+    throw new Error("Missing sheet: " + SHEET_NAMES.guests);
+  }
+
+  const values = sheet.getDataRange().getValues();
+
+  if (values.length < 2) {
+    Logger.log("No guest rows found.");
+    return;
+  }
+
+  const headers = values[0].map((header) => normalizeHeader(header));
+  const tokenColumn = headers.indexOf("token");
+  const inviteUrlColumn = headers.indexOf("invite_url");
+
+  if (tokenColumn === -1) {
+    throw new Error("Missing column in Guests: token");
+  }
+
+  if (inviteUrlColumn === -1) {
+    throw new Error("Missing column in Guests: invite_url");
+  }
+
+  const existingTokens = collectExistingTokens(values, tokenColumn);
+  let updatedCount = 0;
+
+  // Start at index 1 because index 0 is the header row.
+  for (let index = 1; index < values.length; index += 1) {
+    const rowNumber = index + 1;
+    const currentToken = normalize(values[index][tokenColumn]);
+
+    if (currentToken) {
+      continue;
+    }
+
+    const newToken = createUniqueGuestToken(existingTokens);
+    const inviteUrl = INVITE_URL_BASE + newToken;
+
+    sheet.getRange(rowNumber, tokenColumn + 1).setValue(newToken);
+    sheet.getRange(rowNumber, inviteUrlColumn + 1).setValue(inviteUrl);
+    existingTokens.add(newToken);
+    updatedCount += 1;
+  }
+
+  Logger.log("Generated invitation tokens for " + updatedCount + " guest row(s).");
+}
+
+/**
+ * Collects all existing tokens so newly generated tokens cannot duplicate them.
+ */
+function collectExistingTokens(values, tokenColumn) {
+  const tokens = new Set();
+
+  values.slice(1).forEach((row) => {
+    const token = normalize(row[tokenColumn]);
+
+    if (token) {
+      tokens.add(token);
+    }
+  });
+
+  return tokens;
+}
+
+/**
+ * Creates one random token and checks it against the token list.
+ *
+ * Utilities.getUuid() gives us a random value. We remove dashes and keep a
+ * shorter 16-character token so the invitation URL stays tidy.
+ */
+function createUniqueGuestToken(existingTokens) {
+  let token = "";
+
+  do {
+    token = Utilities.getUuid().replace(/-/g, "").slice(0, 16).toLowerCase();
+  } while (existingTokens.has(token));
+
+  return token;
 }
 
 /**
