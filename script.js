@@ -3,7 +3,7 @@ const API_URL =
 
 const RSVP_STATUS_MAP = {
   attending: "confirmed",
-  unsure: "pending",
+  unsure: "maybe",
   unable: "declined",
 };
 
@@ -208,12 +208,14 @@ const page = {
   memoryConfirmation: document.querySelector("#memory-confirmation"),
   memoryPanel: document.querySelector(".memory-panel"),
   rsvpTitle: document.querySelector("#rsvp-title"),
+  rsvpOptionsGroup: document.querySelector(".rsvp-options"),
   rsvpOptions: document.querySelectorAll(".rsvp-option"),
   rsvpFollowup: document.querySelector("#rsvp-followup"),
 };
 
 let selectedPrompt = sampleData.memoryPrompts[0];
 let currentGuestName = "";
+let currentGuestId = "";
 
 function init() {
   setupReveal();
@@ -301,6 +303,7 @@ function createViewModelFromApi(apiData) {
     settings,
     guest,
     guestName,
+    rsvpStatus: normalize(getFirstValue(guest, ["rsvp_status"], "")),
     guestType,
     table: {
       name: getFirstValue(table, ["table_name", "name"], "你的餐桌"),
@@ -430,6 +433,7 @@ function renderInvalidInvitation() {
 
 function renderInvitation(viewModel) {
   currentGuestName = viewModel.guestName;
+  currentGuestId = getFirstValue(viewModel.guest, ["guest_id"], "");
   selectedPrompt = viewModel.memoryPrompts[0];
 
   renderSettings(viewModel.settings);
@@ -441,7 +445,7 @@ function renderInvitation(viewModel) {
   renderApprovedMessages(viewModel.messages);
   renderMemoryPrompts(viewModel.memoryPrompts);
   setupMemoryForm();
-  setupRsvp();
+  setupRsvp(viewModel.rsvpStatus);
 }
 
 function renderSettings(settings) {
@@ -613,10 +617,8 @@ function renderRsvpFollowup(status) {
   saveRsvpChoice("unable");
 }
 
-function setupRsvp() {
+function setupRsvp(rsvpStatus) {
   page.rsvpTitle.textContent = `${currentGuestName}，你会来到花房，和我们一起庆祝吗？`;
-  page.rsvpFollowup.innerHTML =
-    `<p class="rsvp-placeholder">请选择一个回复，我们会为你安排后续细节。</p>`;
 
   page.rsvpOptions.forEach((button) => {
     button.classList.remove("is-selected");
@@ -626,21 +628,75 @@ function setupRsvp() {
       renderRsvpFollowup(button.dataset.rsvp);
     });
   });
+
+  renderInitialRsvpState(rsvpStatus);
+}
+
+function renderInitialRsvpState(rsvpStatus) {
+  const status = normalize(rsvpStatus);
+
+  if (status === "confirmed" || status === "maybe" || status === "declined") {
+    renderSubmittedRsvpState(status);
+    return;
+  }
+
+  renderRsvpForm();
+}
+
+function renderRsvpForm() {
+  setRsvpOptionsVisible(true);
+  page.rsvpOptions.forEach((button) => {
+    button.classList.remove("is-selected");
+  });
+  page.rsvpFollowup.innerHTML =
+    `<p class="rsvp-placeholder">请选择一个回复，我们会为你安排后续细节。</p>`;
+}
+
+function renderSubmittedRsvpState(status) {
+  setRsvpOptionsVisible(false);
+  page.rsvpFollowup.innerHTML = `
+    <p class="rsvp-message">
+      ${getSubmittedRsvpCopy(status)}
+    </p>
+    <button class="rsvp-save" type="button" id="edit-rsvp">需要修改回复</button>
+  `;
+
+  const editButton = document.querySelector("#edit-rsvp");
+
+  if (editButton) {
+    editButton.addEventListener("click", renderRsvpForm);
+  }
+}
+
+function getSubmittedRsvpCopy(status) {
+  if (status === "confirmed") {
+    return "你已经确认出席。我们很期待十二月见到你。";
+  }
+
+  if (status === "maybe") {
+    return "我们已经收到你的回复。我们会暂时为你保留位置，希望到时能见到你。";
+  }
+
+  return "我们已经收到你的回复。虽然这次有点可惜，希望之后还有机会一起吃饭。";
 }
 
 async function saveRsvpChoice(status, details = {}) {
   try {
     setRsvpButtonsDisabled(true);
     renderRsvpSavingMessage();
+    const savedStatus = RSVP_STATUS_MAP[status];
+
     await submitRsvp({
-      rsvpStatus: RSVP_STATUS_MAP[status],
+      guestId: currentGuestId,
+      token,
+      rsvpStatus: savedStatus,
       paxCount: details.paxCount || "",
       dietaryNotes: details.dietaryNotes || "",
       specialNotes: details.specialNotes || "",
     });
-    renderRsvpSuccess(status);
+    renderSubmittedRsvpState(savedStatus);
   } catch (error) {
-    console.warn("RSVP submission failed.", error);
+    console.error("RSVP submission error", error);
     renderRsvpError();
   } finally {
     setRsvpButtonsDisabled(false);
@@ -648,16 +704,20 @@ async function saveRsvpChoice(status, details = {}) {
 }
 
 async function submitRsvp(details) {
-  const body = new URLSearchParams();
-  body.append("token", token);
-  body.append("rsvp_status", details.rsvpStatus);
-  body.append("pax_count", details.paxCount);
-  body.append("dietary_notes", details.dietaryNotes);
-  body.append("special_notes", details.specialNotes);
+  const payload = {
+    token: details.token,
+    guest_id: details.guestId,
+    rsvp_status: details.rsvpStatus,
+    pax_count: details.paxCount,
+    dietary_notes: details.dietaryNotes,
+    special_notes: details.specialNotes,
+  };
+
+  console.log("RSVP payload before submit", payload);
 
   const response = await fetch(API_URL, {
     method: "POST",
-    body,
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -665,6 +725,7 @@ async function submitRsvp(details) {
   }
 
   const data = await response.json();
+  console.log("Apps Script response", data);
 
   if (!data.success) {
     throw new Error(data.error || "RSVP could not be saved");
@@ -679,38 +740,16 @@ function renderRsvpSavingMessage() {
   `;
 }
 
-function renderRsvpSuccess(status) {
-  if (status === "attending") {
-    page.rsvpFollowup.innerHTML = `
-      <p class="rsvp-message">
-        谢谢你，${currentGuestName}。我们已经为你记录出席回复，也会根据你的备注安排晚宴细节。
-      </p>
-    `;
-    return;
-  }
-
-  if (status === "unsure") {
-    page.rsvpFollowup.innerHTML = `
-      <p class="rsvp-message">
-        我们会暂时为你保留位置，希望那天能见到你。
-      </p>
-    `;
-    return;
-  }
-
+function renderRsvpError() {
   page.rsvpFollowup.innerHTML = `
     <p class="rsvp-message">
-      虽然这次错过了，希望未来还有机会一起吃顿饭。
+      提交失败，请稍后再试，或直接联系 Louis / Joyce。
     </p>
   `;
 }
 
-function renderRsvpError() {
-  page.rsvpFollowup.innerHTML = `
-    <p class="rsvp-message">
-      暂时无法保存回复。请稍后再试，或重新打开邀请链接。
-    </p>
-  `;
+function setRsvpOptionsVisible(isVisible) {
+  page.rsvpOptionsGroup.style.display = isVisible ? "" : "none";
 }
 
 function setRsvpButtonsDisabled(isDisabled) {
