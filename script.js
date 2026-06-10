@@ -1,6 +1,12 @@
 const API_URL =
   "https://script.google.com/macros/s/AKfycbzO4xAfw11aKclxz5xzo1A8F0zliCI_Wy59DV_N6XDfQ5NVRjlm171g33hoczYXqmf0gA/exec";
 
+const RSVP_STATUS_MAP = {
+  attending: "confirmed",
+  unsure: "pending",
+  unable: "declined",
+};
+
 // Local sample data stays here only as a fallback if the live API cannot load.
 // This shape is intentionally close to the Google Sheets structure.
 const sampleData = {
@@ -584,33 +590,27 @@ function renderRsvpFollowup(status) {
       return;
     }
 
-    attendingForm.addEventListener("submit", (event) => {
+    attendingForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      page.rsvpFollowup.innerHTML = `
-        <p class="rsvp-message">
-          谢谢你，${currentGuestName}。我们已经为你记录出席回复，也会根据你的备注安排晚宴细节。
-        </p>
-      `;
+
+      const allergies = document.querySelector("#allergies").value;
+      const specialNotes = document.querySelector("#special-notes").value;
+
+      await saveRsvpChoice("attending", {
+        paxCount: document.querySelector("#guest-count").value,
+        dietaryNotes: document.querySelector("#dietary").value,
+        specialNotes: combineSpecialNotes(allergies, specialNotes),
+      });
     });
     return;
   }
 
   if (status === "unsure") {
-    page.rsvpFollowup.innerHTML = `
-      <p class="rsvp-message">
-        我们会先为你保留座位。<br />
-        仍然希望十二月能和你一起庆祝。
-      </p>
-    `;
+    saveRsvpChoice("unsure");
     return;
   }
 
-  page.rsvpFollowup.innerHTML = `
-    <p class="rsvp-message">
-      我们会想念你在场的样子。<br />
-      等婚礼之后，我们再找一个时间好好见面。
-    </p>
-  `;
+  saveRsvpChoice("unable");
 }
 
 function setupRsvp() {
@@ -626,6 +626,111 @@ function setupRsvp() {
       renderRsvpFollowup(button.dataset.rsvp);
     });
   });
+}
+
+async function saveRsvpChoice(status, details = {}) {
+  try {
+    setRsvpButtonsDisabled(true);
+    renderRsvpSavingMessage();
+    await submitRsvp({
+      rsvpStatus: RSVP_STATUS_MAP[status],
+      paxCount: details.paxCount || "",
+      dietaryNotes: details.dietaryNotes || "",
+      specialNotes: details.specialNotes || "",
+    });
+    renderRsvpSuccess(status);
+  } catch (error) {
+    console.warn("RSVP submission failed.", error);
+    renderRsvpError();
+  } finally {
+    setRsvpButtonsDisabled(false);
+  }
+}
+
+async function submitRsvp(details) {
+  const body = new URLSearchParams();
+  body.append("token", token);
+  body.append("rsvp_status", details.rsvpStatus);
+  body.append("pax_count", details.paxCount);
+  body.append("dietary_notes", details.dietaryNotes);
+  body.append("special_notes", details.specialNotes);
+
+  const response = await fetch(API_URL, {
+    method: "POST",
+    body,
+  });
+
+  if (!response.ok) {
+    throw new Error(`RSVP request failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (!data.success) {
+    throw new Error(data.error || "RSVP could not be saved");
+  }
+
+  return data;
+}
+
+function renderRsvpSavingMessage() {
+  page.rsvpFollowup.innerHTML = `
+    <p class="rsvp-placeholder">正在保存你的回复。</p>
+  `;
+}
+
+function renderRsvpSuccess(status) {
+  if (status === "attending") {
+    page.rsvpFollowup.innerHTML = `
+      <p class="rsvp-message">
+        谢谢你，${currentGuestName}。我们已经为你记录出席回复，也会根据你的备注安排晚宴细节。
+      </p>
+    `;
+    return;
+  }
+
+  if (status === "unsure") {
+    page.rsvpFollowup.innerHTML = `
+      <p class="rsvp-message">
+        我们会暂时为你保留位置，希望那天能见到你。
+      </p>
+    `;
+    return;
+  }
+
+  page.rsvpFollowup.innerHTML = `
+    <p class="rsvp-message">
+      虽然这次错过了，希望未来还有机会一起吃顿饭。
+    </p>
+  `;
+}
+
+function renderRsvpError() {
+  page.rsvpFollowup.innerHTML = `
+    <p class="rsvp-message">
+      暂时无法保存回复。请稍后再试，或重新打开邀请链接。
+    </p>
+  `;
+}
+
+function setRsvpButtonsDisabled(isDisabled) {
+  page.rsvpOptions.forEach((button) => {
+    button.disabled = isDisabled;
+  });
+}
+
+function combineSpecialNotes(allergies, specialNotes) {
+  const notes = [];
+
+  if (allergies.trim()) {
+    notes.push(`过敏事项：${allergies.trim()}`);
+  }
+
+  if (specialNotes.trim()) {
+    notes.push(`特别备注：${specialNotes.trim()}`);
+  }
+
+  return notes.join("；");
 }
 
 function setupMemoryForm() {
