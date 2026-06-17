@@ -7,6 +7,21 @@ const RSVP_STATUS_MAP = {
   unable: "declined",
 };
 
+const DINNER_EXPERIENCE_COPY =
+  "这一次的晚餐，我们希望节奏是舒服的。\n\n宾客入座后，第一道菜会由服务员送上。\n\n主菜会由 服务员送到每一桌，具体上菜节奏会根据当天的服务流程安排。\n\n甜点则会安排成 Dessert Table，让大家在晚宴后段可以比较轻松地自行取用。\n\n我们希望大家是可以好好坐下来吃饭、聊天，也慢慢进入这个晚上。";
+
+const DINNER_FORMAT_ITEMS = [
+  "Served Starter",
+  "Served Main Courses",
+  "Dessert Table",
+];
+
+const MEMORY_SUCCESS_MESSAGE =
+  "谢谢你留下这段记忆。\n我们会先看过，再放到这个圈子的留言区。";
+
+const SUBMISSION_ERROR_MESSAGE =
+  "提交失败，请稍后再试，或直接联系 Louis / Joyce。";
+
 // Local sample data stays here only as a fallback if the live API cannot load.
 // This shape is intentionally close to the Google Sheets structure.
 const sampleData = {
@@ -31,8 +46,7 @@ const sampleData = {
     rsvp_deadline: "2026-10-31",
     dinner_style_title: "晚餐安排",
     dinner_format: "Served Starter + Served Main Courses + Dessert Table",
-    dinner_copy:
-      "这一次的晚餐，我们会以：Served Starter、Served Main Courses、Dessert Table 的方式进行。宾客入座后，第一道菜会由服务员送上。主菜将由 service team 送到每一桌，具体上菜节奏会根据当天的服务流程安排。甜点则会安排成 Dessert Table，让大家在晚宴后段可以比较轻松地自行取用。我们希望整个晚餐的节奏是舒服的：入席后可以慢慢开始，主菜有人送到桌边，甜点时间则留给大家自由走动、聊天和相聚。",
+    dinner_copy: DINNER_EXPERIENCE_COPY,
     menu_status: "完整菜单确认后会再更新。",
   },
   guestTypes: {
@@ -174,18 +188,22 @@ const sampleData = {
     {
       message_id: "M001",
       guest_id: "G001",
+      guest_name: "Jason",
       table_id: "chaos-committee",
-      prompt_type: "memory",
+      group_name: "university-friends",
+      prompt_type: "你想对即将步入婚姻的 Louis & Joyce 说什么？",
       message: "愿今晚的灯光，照着你们以后的每一天。",
-      approved: true,
+      approved: "yes",
     },
     {
       message_id: "M002",
       guest_id: "G002",
+      guest_name: "Marcus",
       table_id: "chaos-committee",
-      prompt_type: "memory",
+      group_name: "university-friends",
+      prompt_type: "你仍然记得的一段回忆是什么？",
       message: "那年一起赶末班车的画面，到现在都还记得。",
-      approved: true,
+      approved: "yes",
     },
   ],
   memoryPrompts: [
@@ -210,13 +228,15 @@ const page = {
   personalMessage: document.querySelector("#personal-message"),
   detailsTitle: document.querySelector("#details-title"),
   detailsGrid: document.querySelector("#details-grid"),
+  diningKicker: document.querySelector("#dining-kicker"),
   diningTitle: document.querySelector("#dining-title"),
-  diningCopy: document.querySelector(".dining-layout .scene-heading p"),
+  diningCopy: document.querySelector("#dining-copy"),
   diningSteps: document.querySelector("#dining-steps"),
   tableTitle: document.querySelector("#table-title"),
   tableStory: document.querySelector("#table-story"),
   tableTheme: document.querySelector("#table-theme"),
   memberList: document.querySelector("#member-list"),
+  memoryBoard: document.querySelector("#memory-board"),
   promptList: document.querySelector("#prompt-list"),
   memoryForm: document.querySelector("#memory-form"),
   memoryInput: document.querySelector("#memory-input"),
@@ -300,7 +320,7 @@ function createFallbackApiShape(invitationToken) {
       )
     : [];
   const messages = sampleData.messages.filter(
-    (item) => item.table_id === guest.table_id && isApproved(item.approved)
+    (item) => item.group_name === guest.group_name && isApproved(item.approved)
   );
 
   return {
@@ -449,10 +469,29 @@ function createNavigationLinks(settings) {
 function createDining(settings) {
   return {
     title: getSetting(settings, "dinner_style_title"),
-    format: getSetting(settings, "dinner_format"),
-    copy: getSetting(settings, "dinner_copy"),
+    formatItems: createDinnerFormatItems(getSetting(settings, "dinner_format")),
+    copy: getDinnerCopy(settings),
     menuStatus: getSetting(settings, "menu_status"),
   };
+}
+
+function createDinnerFormatItems(format) {
+  const items = String(format || "")
+    .split(/[+、,，]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return items.length ? items : DINNER_FORMAT_ITEMS;
+}
+
+function getDinnerCopy(settings) {
+  const copy = getSetting(settings, "dinner_copy", DINNER_EXPERIENCE_COPY);
+
+  if (!copy || normalize(copy) === "晚餐文案整段") {
+    return DINNER_EXPERIENCE_COPY;
+  }
+
+  return copy;
 }
 
 function createMenu(menu) {
@@ -606,43 +645,84 @@ function createVenueNavigation(navigationLinks) {
 }
 
 function renderDining(dining, menu) {
+  page.diningKicker.textContent = "晚宴体验";
   page.diningTitle.textContent = dining.title;
   page.diningCopy.textContent = dining.copy;
   page.diningSteps.innerHTML = "";
 
-  appendDiningStep({
-    label: "Dinner Format",
-    title: dining.format,
-    note: "我们会按当天服务流程安排上菜节奏，让晚餐尽量舒服、有序。",
+  appendDinnerFormat(dining.formatItems);
+  appendMenuPreview(menu, dining.menuStatus);
+}
+
+function appendDinnerFormat(formatItems) {
+  const formatBlock = document.createElement("section");
+  formatBlock.className = "dinner-format-block";
+
+  const itemList = document.createElement("div");
+  itemList.className = "dinner-format-list";
+
+  formatItems.forEach((item) => {
+    const formatItem = document.createElement("span");
+    formatItem.className = "dinner-format-item";
+    formatItem.textContent = item;
+    itemList.appendChild(formatItem);
   });
 
+  formatBlock.innerHTML = `
+    <span class="dinner-format-label">晚餐形式</span>
+    <strong>我们会让晚餐从入座开始，慢慢展开。</strong>
+  `;
+  formatBlock.appendChild(itemList);
+  page.diningSteps.appendChild(formatBlock);
+}
+
+function appendMenuPreview(menu, menuStatus) {
+  const menuSection = document.createElement("section");
+  menuSection.className = "menu-preview";
+
   if (!menu.length) {
-    appendDiningStep({
-      label: "菜单",
-      title: dining.menuStatus,
-      note: "",
-    });
+    const status = document.createElement("p");
+    status.className = "menu-status";
+    status.textContent = menuStatus || "完整菜单确认后会再更新。";
+    menuSection.appendChild(status);
+    page.diningSteps.appendChild(menuSection);
     return;
   }
 
+  const title = document.createElement("h3");
+  const list = document.createElement("div");
+
+  title.className = "menu-preview-title";
+  title.textContent = "菜单预览";
+  list.className = "menu-list";
+  menuSection.appendChild(title);
+  menuSection.appendChild(list);
+
   menu.forEach((item) => {
-    appendDiningStep({
+    list.appendChild(createMenuCard({
       label: getFirstValue(item, ["course_type"], "Menu"),
       title: createMenuItemTitle(item),
       note: getFirstValue(item, ["description"], ""),
-    });
+    }));
   });
+
+  page.diningSteps.appendChild(menuSection);
 }
 
-function appendDiningStep(item) {
+function createMenuCard(item) {
   const step = document.createElement("article");
+  const label = document.createElement("span");
+  const title = document.createElement("strong");
+  const note = document.createElement("p");
+
   step.className = "dining-step";
-  step.innerHTML = `
-    <span>${item.label}</span>
-    <strong>${item.title}</strong>
-    <p>${item.note}</p>
-  `;
-  page.diningSteps.appendChild(step);
+  label.textContent = item.label;
+  title.textContent = item.title;
+  note.textContent = item.note;
+  step.appendChild(label);
+  step.appendChild(title);
+  step.appendChild(note);
+  return step;
 }
 
 function createMenuItemTitle(item) {
@@ -752,24 +832,30 @@ function getMemberKey(member) {
 }
 
 function renderApprovedMessages(messages) {
-  const existingList = document.querySelector("#approved-message-list");
-
-  if (existingList) {
-    existingList.remove();
-  }
+  page.memoryBoard.innerHTML = "";
 
   if (!messages.length) {
+    const emptyMessage = document.createElement("p");
+    emptyMessage.className = "memory-empty";
+    emptyMessage.textContent = "还没有人留下回忆。也许你可以先写第一句。";
+    page.memoryBoard.appendChild(emptyMessage);
     return;
   }
 
   const list = document.createElement("div");
-  list.id = "approved-message-list";
-  list.className = "memory-confirmation";
-  list.innerHTML = messages
-    .map((item) => `<p>${getFirstValue(item, ["message"], "")}</p>`)
-    .join("");
+  list.className = "memory-message-list";
 
-  page.memoryPanel.insertBefore(list, page.memoryForm);
+  messages.forEach((item) => {
+    const message = document.createElement("article");
+    const text = document.createElement("p");
+
+    message.className = "memory-message";
+    text.textContent = getFirstValue(item, ["message"], "");
+    message.appendChild(text);
+    list.appendChild(message);
+  });
+
+  page.memoryBoard.appendChild(list);
 }
 
 function renderMemoryPrompts(prompts) {
@@ -947,6 +1033,7 @@ async function saveRsvpChoice(status, details = {}) {
 
 async function submitRsvp(details) {
   const payload = {
+    action: "rsvp",
     token: details.token,
     guest_id: details.guestId,
     rsvp_status: details.rsvpStatus,
@@ -985,7 +1072,7 @@ function renderRsvpSavingMessage() {
 function renderRsvpError() {
   page.rsvpFollowup.innerHTML = `
     <p class="rsvp-message">
-      提交失败，请稍后再试，或直接联系 Louis / Joyce。
+      ${SUBMISSION_ERROR_MESSAGE}
     </p>
   `;
 }
@@ -1041,7 +1128,7 @@ function isPaxCountAllowed(value) {
 function setupMemoryForm() {
   page.memoryInput.placeholder = selectedPrompt;
 
-  page.memoryForm.addEventListener("submit", (event) => {
+  page.memoryForm.addEventListener("submit", async (event) => {
     event.preventDefault();
 
     const memory = page.memoryInput.value.trim();
@@ -1051,9 +1138,70 @@ function setupMemoryForm() {
       return;
     }
 
-    page.memoryConfirmation.textContent = `已保存：${selectedPrompt} — ${memory}`;
-    page.memoryInput.value = "";
+    try {
+      setMemoryFormDisabled(true);
+      renderMemorySavingMessage();
+      await submitMemory(memory);
+      page.memoryInput.value = "";
+      renderMemorySuccess();
+    } catch (error) {
+      console.error("Memory submission error", error);
+      renderMemoryError();
+    } finally {
+      setMemoryFormDisabled(false);
+    }
   });
+}
+
+async function submitMemory(memory) {
+  const payload = {
+    action: "memory",
+    token,
+    guest_id: currentGuestId,
+    prompt_type: selectedPrompt,
+    message: memory,
+  };
+
+  console.log("Memory payload before submit", payload);
+
+  const response = await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Memory request failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+  console.log("Memory Apps Script response", data);
+
+  if (!data.success) {
+    throw new Error(data.error || "Memory could not be saved");
+  }
+
+  return data;
+}
+
+function renderMemorySavingMessage() {
+  page.memoryConfirmation.textContent = "正在保存这段记忆。";
+}
+
+function renderMemorySuccess() {
+  page.memoryConfirmation.textContent = MEMORY_SUCCESS_MESSAGE;
+}
+
+function renderMemoryError() {
+  page.memoryConfirmation.textContent = SUBMISSION_ERROR_MESSAGE;
+}
+
+function setMemoryFormDisabled(isDisabled) {
+  page.memoryInput.disabled = isDisabled;
+  page.memoryForm
+    .querySelectorAll("button")
+    .forEach((button) => {
+      button.disabled = isDisabled;
+    });
 }
 
 function setupReveal() {
