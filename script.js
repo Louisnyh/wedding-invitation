@@ -104,6 +104,7 @@ const sampleData = {
       guest_type: "longLostFriends",
       table_id: "chaos-committee",
       rsvp_status: "confirmed",
+      pax_limit: 2,
     },
     {
       guest_id: "G002",
@@ -112,6 +113,7 @@ const sampleData = {
       guest_type: "longLostFriends",
       table_id: "chaos-committee",
       rsvp_status: "confirmed",
+      pax_limit: 1,
     },
     {
       guest_id: "G003",
@@ -120,6 +122,7 @@ const sampleData = {
       guest_type: "longLostFriends",
       table_id: "chaos-committee",
       rsvp_status: "confirmed",
+      pax_limit: 1,
     },
     {
       guest_id: "G004",
@@ -128,6 +131,7 @@ const sampleData = {
       guest_type: "longLostFriends",
       table_id: "chaos-committee",
       rsvp_status: "confirmed",
+      pax_limit: 1,
     },
     {
       guest_id: "G005",
@@ -136,6 +140,7 @@ const sampleData = {
       guest_type: "closeFriends",
       table_id: "chaos-committee",
       rsvp_status: "confirmed",
+      pax_limit: 1,
     },
     {
       guest_id: "G006",
@@ -144,6 +149,7 @@ const sampleData = {
       guest_type: "closeFriends",
       table_id: "chaos-committee",
       rsvp_status: "pending",
+      pax_limit: 2,
     },
     {
       guest_id: "G007",
@@ -152,6 +158,7 @@ const sampleData = {
       guest_type: "family",
       table_id: "family-garden",
       rsvp_status: "confirmed",
+      pax_limit: 2,
     },
     {
       guest_id: "G008",
@@ -160,6 +167,7 @@ const sampleData = {
       guest_type: "family",
       table_id: "family-garden",
       rsvp_status: "confirmed",
+      pax_limit: 2,
     },
   ],
   messages: [
@@ -216,6 +224,7 @@ const page = {
 let selectedPrompt = sampleData.memoryPrompts[0];
 let currentGuestName = "";
 let currentGuestId = "";
+let currentPaxLimit = null;
 
 function init() {
   setupReveal();
@@ -304,6 +313,7 @@ function createViewModelFromApi(apiData) {
     guest,
     guestName,
     rsvpStatus: normalize(getFirstValue(guest, ["rsvp_status"], "")),
+    paxLimit: cleanPaxLimit(getFirstValue(guest, ["pax_limit"], "")),
     guestType,
     table: {
       name: getFirstValue(table, ["table_name", "name"], "你的餐桌"),
@@ -434,6 +444,7 @@ function renderInvalidInvitation() {
 function renderInvitation(viewModel) {
   currentGuestName = viewModel.guestName;
   currentGuestId = getFirstValue(viewModel.guest, ["guest_id"], "");
+  currentPaxLimit = viewModel.paxLimit;
   selectedPrompt = viewModel.memoryPrompts[0];
 
   renderSettings(viewModel.settings);
@@ -566,11 +577,13 @@ function renderMemoryPrompts(prompts) {
 
 function renderRsvpFollowup(status) {
   if (status === "attending") {
+    const maxAttribute = currentPaxLimit ? ` max="${currentPaxLimit}"` : "";
+
     page.rsvpFollowup.innerHTML = `
       <form class="attending-form" id="attending-form">
         <div class="field">
           <label for="guest-count">出席人数</label>
-          <input id="guest-count" name="guest-count" type="number" min="1" max="4" value="1" />
+          <input id="guest-count" name="guest-count" type="number" min="1"${maxAttribute} value="1" />
         </div>
         <div class="field">
           <label for="dietary">饮食需求</label>
@@ -597,11 +610,17 @@ function renderRsvpFollowup(status) {
     attendingForm.addEventListener("submit", async (event) => {
       event.preventDefault();
 
+      const paxInput = document.querySelector("#guest-count");
       const allergies = document.querySelector("#allergies").value;
       const specialNotes = document.querySelector("#special-notes").value;
 
+      if (!isPaxCountAllowed(paxInput.value)) {
+        renderRsvpError();
+        return;
+      }
+
       await saveRsvpChoice("attending", {
-        paxCount: document.querySelector("#guest-count").value,
+        paxCount: paxInput.value,
         dietaryNotes: document.querySelector("#dietary").value,
         specialNotes: combineSpecialNotes(allergies, specialNotes),
       });
@@ -772,6 +791,30 @@ function combineSpecialNotes(allergies, specialNotes) {
   return notes.join("；");
 }
 
+function cleanPaxLimit(value) {
+  const paxLimit = parseInt(value, 10);
+
+  if (isNaN(paxLimit) || paxLimit < 1) {
+    return null;
+  }
+
+  return paxLimit;
+}
+
+function isPaxCountAllowed(value) {
+  if (!currentPaxLimit) {
+    return true;
+  }
+
+  const paxCount = parseInt(value, 10);
+
+  if (isNaN(paxCount)) {
+    return true;
+  }
+
+  return paxCount <= currentPaxLimit;
+}
+
 function setupMemoryForm() {
   page.memoryInput.placeholder = selectedPrompt;
 
@@ -816,17 +859,15 @@ function setupReveal() {
 function sanitizeGuest(guest) {
   const publicGuest = Object.assign({}, guest);
   delete publicGuest.whatsapp;
+  delete publicGuest.table_locked;
+  delete publicGuest.invitation_status;
+  delete publicGuest.plus_one_allowed;
   return publicGuest;
 }
 
 function isDeclined(guest) {
   const rsvpStatus = normalize(getFirstValue(guest, ["rsvp_status"], ""));
-  const invitationStatus = normalize(getFirstValue(guest, ["invitation_status"], ""));
-  return (
-    rsvpStatus === "declined" ||
-    rsvpStatus === "unable" ||
-    invitationStatus === "declined"
-  );
+  return rsvpStatus === "declined" || rsvpStatus === "unable";
 }
 
 function isConfirmed(guest) {
