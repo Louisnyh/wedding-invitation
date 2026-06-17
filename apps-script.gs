@@ -83,6 +83,8 @@ function doGet(e) {
       .filter((row) => normalize(row.rsvp_status) === "confirmed")
       .map(removePrivateGuestFields);
 
+    const confirmedGroupMembers = getConfirmedGroupMembers(guests, guest);
+
     const approvedMessages = messages
       .filter((row) => normalize(row.table_id) === normalize(guest.table_id))
       .filter((row) => isApproved(row.approved));
@@ -92,6 +94,7 @@ function doGet(e) {
       guest: removePrivateGuestFields(guest),
       table,
       confirmedTableMembers,
+      confirmedGroupMembers,
       messages: approvedMessages,
       settings,
     });
@@ -224,6 +227,31 @@ function readSettings(spreadsheet, sheetName) {
 
     return settings;
   }, {});
+}
+
+/**
+ * Finds confirmed guests from the same social group as the current guest.
+ *
+ * Rules:
+ * - Uses Guests.group_name, not a separate sheet.
+ * - Only confirmed guests are returned.
+ * - Pending, maybe, and declined guests are never returned.
+ * - Private fields are removed before sending data to the website.
+ *
+ * The current guest and same-table guests may still be included here so the
+ * frontend can compare total group count against same-table count.
+ */
+function getConfirmedGroupMembers(guests, guest) {
+  const groupName = normalize(guest.group_name);
+
+  if (!groupName) {
+    return [];
+  }
+
+  return guests
+    .filter((row) => normalize(row.group_name) === groupName)
+    .filter((row) => normalize(row.rsvp_status) === "confirmed")
+    .map(removePrivateGuestFields);
 }
 
 /**
@@ -704,6 +732,7 @@ function formatCellValue(value) {
  *   "guest": {...},
  *   "table": {...},
  *   "confirmedTableMembers": [...],
+ *   "confirmedGroupMembers": [...],
  *   "messages": [...],
  *   "settings": {...}
  * }
