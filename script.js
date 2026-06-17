@@ -11,16 +11,31 @@ const RSVP_STATUS_MAP = {
 // This shape is intentionally close to the Google Sheets structure.
 const sampleData = {
   settings: {
-    couple: "Louis & Joyce",
-    wedding_date: "5 December 2026",
-    hero_line: "透明花房、晚风、暖灯，还有我们想认真款待的每一位客人。",
+    visual_theme: "Soft Garden Evening",
+    hero_copy:
+      "我们没有想把婚礼做得很夸张。只是希望晚风、暖灯、舒服的座位、被认真安排的晚餐，以及每一个细节，都能让来到的人感觉到：这一天，我们真的有认真准备。",
+    wedding_date_display: "2026年12月5日 · 星期六",
+    wedding_start_time: "晚上 6:00 开始",
+    venue_name: "億家主题宴会厅 · Hall E 露天草坪",
+    venue_address:
+      "8, Jln Adda 2, Taman Adda, 81100 Johor Bahru, Johor Darul Ta'zim, Malaysia",
+    google_maps_url: "https://maps.app.goo.gl/tDacdw6Jo4zL5B4U6",
+    waze_url:
+      "https://ul.waze.com/ul?place=ChIJ6RCo4ONt2jER_oq6JM55BN8&ll=1.54910240%2C103.74597420&navigate=yes&utm_campaign=default&utm_source=waze_website&utm_medium=lm_share_location",
+    dress_code: "Smart Formal / 正式得体即可",
+    rsvp_deadline: "2026-10-31",
+    dinner_style_title: "晚餐安排",
+    dinner_format: "Served Starter + Served Main Courses + Dessert Table",
+    dinner_copy:
+      "这一次的晚餐，我们会以：Served Starter、Served Main Courses、Dessert Table 的方式进行。宾客入座后，第一道菜会由服务员送上。主菜将由 service team 送到每一桌，具体上菜节奏会根据当天的服务流程安排。甜点则会安排成 Dessert Table，让大家在晚宴后段可以比较轻松地自行取用。我们希望整个晚餐的节奏是舒服的：入席后可以慢慢开始，主菜有人送到桌边，甜点时间则留给大家自由走动、聊天和相聚。",
+    menu_status: "完整菜单确认后会再更新。",
   },
   guestTypes: {
     family: {
       label: "给家人",
       title: "{name}，谢谢你一路把我们放在心上。",
       message:
-        "这一天对我们很重要，因为你会在场。我们想在玻璃花房的灯光里，好好向你说一声谢谢，也请你见证我们成为彼此的家人。",
+        "这一天对我们很重要，因为你会在场。我们想在晚风和暖灯里，好好向你说一声谢谢，也请你见证我们成为彼此的家人。",
     },
     colleagues: {
       label: "给同事",
@@ -38,48 +53,10 @@ const sampleData = {
       label: "给久别重逢的朋友",
       title: "{name}，这一晚也想把你带回我们身边。",
       message:
-        "婚礼是这一晚的主角，但我们也悄悄期待那些久违的拥抱和一句“好久不见”。你的位置已经留好，希望十二月能在花房灯光下重新见到你。",
+        "婚礼是这一晚的主角，但我们也悄悄期待那些久违的拥抱和一句“好久不见”。你的位置已经留好，希望十二月能在暖灯下重新见到你。",
     },
   },
-  details: [
-    {
-      label: "日期",
-      value: "2026年12月5日",
-      note: "星期六，晚间婚礼",
-    },
-    {
-      label: "时间",
-      value: "18:00 入场 · 18:45 仪式",
-      note: "花园灯光会在傍晚慢慢亮起",
-    },
-    {
-      label: "地点",
-      value: "玻璃花房花园，吉隆坡",
-      note: "户外花园与透明玻璃结构",
-    },
-    {
-      label: "着装",
-      value: "浅色正式着装",
-      note: "象牙白、柔薰衣草、尤加利绿或香槟金细节皆可",
-    },
-  ],
-  dining: [
-    {
-      label: "Pre-set Starter",
-      title: "预设前菜",
-      note: "入座时已准备好第一道轻食，让大家不用一开始就离席取餐。",
-    },
-    {
-      label: "Served Main Course",
-      title: "桌边主菜",
-      note: "主菜会送到每一位宾客面前，把晚餐时间留给交谈、举杯和祝福。",
-    },
-    {
-      label: "Dessert Table",
-      title: "甜点台",
-      note: "仪式与晚宴之后，大家可以自由取用甜点，慢慢走动，也慢慢重逢。",
-    },
-  ],
+  menu: [],
   tables: [
     {
       table_id: "chaos-committee",
@@ -216,6 +193,7 @@ const sampleData = {
 const token = new URLSearchParams(window.location.search).get("token");
 const page = {
   main: document.querySelector("main"),
+  heroKicker: document.querySelector(".hero-content .kicker"),
   heroTitle: document.querySelector("#hero-title"),
   heroDate: document.querySelector(".hero-date"),
   heroLine: document.querySelector(".hero-line"),
@@ -223,6 +201,8 @@ const page = {
   personalTitle: document.querySelector("#personal-title"),
   personalMessage: document.querySelector("#personal-message"),
   detailsGrid: document.querySelector("#details-grid"),
+  diningTitle: document.querySelector("#dining-title"),
+  diningCopy: document.querySelector(".dining-layout .scene-heading p"),
   diningSteps: document.querySelector("#dining-steps"),
   tableTitle: document.querySelector("#table-title"),
   tableStory: document.querySelector("#table-story"),
@@ -322,6 +302,7 @@ function createFallbackApiShape(invitationToken) {
     confirmedGroupMembers,
     messages,
     settings: sampleData.settings,
+    menu: sampleData.menu,
   };
 }
 
@@ -361,7 +342,9 @@ function createViewModelFromApi(apiData) {
       .filter((message) => isApproved(message.approved))
       .filter((message) => getFirstValue(message, ["message"], "")),
     details: createDetails(settings),
-    dining: sampleData.dining,
+    navigationLinks: createNavigationLinks(settings),
+    dining: createDining(settings),
+    menu: createMenu(apiData.menu),
     memoryPrompts: sampleData.memoryPrompts,
   };
 }
@@ -384,7 +367,7 @@ function getGuestTypeCopy(type, guest) {
       label: "专属邀请",
       title: "{name}，我们为你准备了这份邀请。",
       message:
-        "感谢你成为这一天重要的一部分。我们期待在玻璃花房的灯光下与你相见。",
+        "感谢你成为这一天重要的一部分。我们期待在晚风和暖灯里与你相见。",
     };
 
   return Object.assign({}, copy, {
@@ -414,27 +397,67 @@ function createDetails(settings) {
   return [
     {
       label: "日期",
-      value: settings.wedding_date || settings.date || "2026年12月5日",
-      note: settings.date_note || "星期六，晚间婚礼",
+      value: getSetting(settings, "wedding_date_display"),
+      note: "请把这一天留给我们。",
     },
     {
       label: "时间",
-      value: settings.wedding_time || "18:00 入场 · 18:45 仪式",
-      note: settings.time_note || "花园灯光会在傍晚慢慢亮起",
+      value: getSetting(settings, "wedding_start_time"),
+      note: "建议预留一些时间抵达、入座和慢慢见面。",
     },
     {
       label: "地点",
-      value: settings.venue || "玻璃花房花园，吉隆坡",
-      note: settings.venue_note || "户外花园与透明玻璃结构",
+      value: getSetting(settings, "venue_name"),
+      note: getSetting(settings, "venue_address"),
     },
     {
       label: "着装",
-      value: settings.dress_code || "浅色正式着装",
-      note:
-        settings.dress_code_note ||
-        "象牙白、柔薰衣草、尤加利绿或香槟金细节皆可",
+      value: getSetting(settings, "dress_code"),
+      note: "舒服、得体，也适合晚间户外活动即可。",
     },
   ];
+}
+
+function createNavigationLinks(settings) {
+  return [
+    {
+      label: "Google Maps",
+      url: getSetting(settings, "google_maps_url", ""),
+    },
+    {
+      label: "Waze",
+      url: getSetting(settings, "waze_url", ""),
+    },
+  ].filter((item) => item.url);
+}
+
+function createDining(settings) {
+  return {
+    title: getSetting(settings, "dinner_style_title"),
+    format: getSetting(settings, "dinner_format"),
+    copy: getSetting(settings, "dinner_copy"),
+    menuStatus: getSetting(settings, "menu_status"),
+  };
+}
+
+function createMenu(menu) {
+  return (menu || [])
+    .filter((item) => normalize(getFirstValue(item, ["is_confirmed"], "")) === "yes")
+    .sort((first, second) => getDisplayOrder(first) - getDisplayOrder(second));
+}
+
+function getDisplayOrder(item) {
+  const displayOrder = parseInt(getFirstValue(item, ["display_order"], ""), 10);
+
+  if (isNaN(displayOrder)) {
+    return 9999;
+  }
+
+  return displayOrder;
+}
+
+function getSetting(settings, key, fallback = sampleData.settings[key]) {
+  return getFirstValue(settings, [key], fallback || "");
 }
 
 function renderLoadingState() {
@@ -480,8 +503,8 @@ function renderInvitation(viewModel) {
 
   renderSettings(viewModel.settings);
   renderPersonalInvitation(viewModel);
-  renderDetails(viewModel.details);
-  renderDining(viewModel.dining);
+  renderDetails(viewModel.details, viewModel.navigationLinks);
+  renderDining(viewModel.dining, viewModel.menu);
   renderTable(viewModel.table);
   renderMembers(viewModel.confirmedTableMembers);
   renderGroupMembers(viewModel);
@@ -492,11 +515,10 @@ function renderInvitation(viewModel) {
 }
 
 function renderSettings(settings) {
-  page.heroTitle.textContent = settings.couple || "Louis & Joyce";
-  page.heroDate.textContent = settings.wedding_date || settings.date || "5 December 2026";
-  page.heroLine.textContent =
-    settings.hero_line ||
-    "透明花房、晚风、暖灯，还有我们想认真款待的每一位客人。";
+  page.heroKicker.textContent = getSetting(settings, "visual_theme");
+  page.heroTitle.textContent = "Louis & Joyce";
+  page.heroDate.textContent = getSetting(settings, "wedding_date_display");
+  page.heroLine.textContent = getSetting(settings, "hero_copy");
 }
 
 function renderPersonalInvitation(viewModel) {
@@ -511,7 +533,7 @@ function renderPersonalInvitation(viewModel) {
   );
 }
 
-function renderDetails(details) {
+function renderDetails(details, navigationLinks) {
   page.detailsGrid.innerHTML = "";
 
   details.forEach((item) => {
@@ -524,21 +546,84 @@ function renderDetails(details) {
     `;
     page.detailsGrid.appendChild(detail);
   });
+
+  if (navigationLinks.length) {
+    renderNavigationButtons(navigationLinks);
+  }
 }
 
-function renderDining(dining) {
+function renderNavigationButtons(navigationLinks) {
+  const navigation = document.createElement("article");
+  navigation.className = "detail-item";
+  navigation.innerHTML = `
+    <span>导航</span>
+    <strong>前往会场</strong>
+    <p>选择你习惯使用的导航方式。</p>
+  `;
+
+  navigationLinks.forEach((link) => {
+    const button = document.createElement("button");
+    button.className = "prompt-button";
+    button.type = "button";
+    button.textContent = link.label;
+    button.addEventListener("click", () => {
+      window.open(link.url, "_blank", "noopener,noreferrer");
+    });
+    navigation.appendChild(button);
+  });
+
+  page.detailsGrid.appendChild(navigation);
+}
+
+function renderDining(dining, menu) {
+  page.diningTitle.textContent = dining.title;
+  page.diningCopy.textContent = dining.copy;
   page.diningSteps.innerHTML = "";
 
-  dining.forEach((item) => {
-    const step = document.createElement("article");
-    step.className = "dining-step";
-    step.innerHTML = `
-      <span>${item.label}</span>
-      <strong>${item.title}</strong>
-      <p>${item.note}</p>
-    `;
-    page.diningSteps.appendChild(step);
+  appendDiningStep({
+    label: "Dinner Format",
+    title: dining.format,
+    note: "我们会按当天服务流程安排上菜节奏，让晚餐尽量舒服、有序。",
   });
+
+  if (!menu.length) {
+    appendDiningStep({
+      label: "菜单",
+      title: dining.menuStatus,
+      note: "",
+    });
+    return;
+  }
+
+  menu.forEach((item) => {
+    appendDiningStep({
+      label: getFirstValue(item, ["course_type"], "Menu"),
+      title: createMenuItemTitle(item),
+      note: getFirstValue(item, ["description"], ""),
+    });
+  });
+}
+
+function appendDiningStep(item) {
+  const step = document.createElement("article");
+  step.className = "dining-step";
+  step.innerHTML = `
+    <span>${item.label}</span>
+    <strong>${item.title}</strong>
+    <p>${item.note}</p>
+  `;
+  page.diningSteps.appendChild(step);
+}
+
+function createMenuItemTitle(item) {
+  const chineseName = getFirstValue(item, ["course_name_cn"], "");
+  const englishName = getFirstValue(item, ["course_name_en"], "");
+
+  if (chineseName && englishName) {
+    return `${chineseName} / ${englishName}`;
+  }
+
+  return chineseName || englishName || "菜单项目";
 }
 
 function renderTable(table) {
