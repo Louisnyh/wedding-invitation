@@ -87,9 +87,7 @@ function doGet(e) {
 
     const confirmedGroupMembers = getConfirmedGroupMembers(guests, guest);
 
-    const approvedMessages = messages
-      .filter((row) => normalize(row.table_id) === normalize(guest.table_id))
-      .filter((row) => isApproved(row.approved));
+    const approvedMessages = getApprovedGroupMessages(messages, guest);
 
     return jsonResponse({
       success: true,
@@ -111,16 +109,13 @@ function doGet(e) {
 }
 
 /**
- * RSVP save endpoint.
+ * Save endpoint for website actions.
  *
- * The website sends a POST request here when a guest chooses:
- * - 会出席
- * - 暂时不确定
- * - 无法出席
+ * The website sends action-based POST requests here:
+ * - action = rsvp   saves attendance replies
+ * - action = memory saves memories for review
  *
- * This function:
- * 1. Adds a new row to the RSVP sheet.
- * 2. Updates the matching guest row in the Guests sheet.
+ * Older RSVP requests without an action are still treated as RSVP requests.
  *
  * @param {Object} e Apps Script event object containing submitted form data.
  * @return {ContentService.TextOutput} JSON response.
@@ -128,78 +123,19 @@ function doGet(e) {
 function doPost(e) {
   try {
     const data = parsePostData(e);
-    const token = normalize(data.token);
-    const guestId = normalize(data.guest_id);
-    const rsvpStatus = normalizeRsvpStatus(data.rsvp_status);
+    const action = normalize(data.action || "rsvp");
 
-    if (!token || !guestId || !rsvpStatus) {
-      return jsonResponse({
-        success: false,
-        error: "Invalid RSVP response",
-      });
+    if (action === "memory") {
+      return saveMemoryPost(data);
     }
 
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const guestsSheet = spreadsheet.getSheetByName(SHEET_NAMES.guests);
-
-    if (!guestsSheet) {
-      throw new Error("Missing sheet: " + SHEET_NAMES.guests);
-    }
-
-    const guestLookup = findGuestRowByToken(guestsSheet, token);
-
-    if (!guestLookup) {
-      return jsonResponse({
-        success: false,
-        error: "Invalid invitation link",
-      });
-    }
-
-    if (normalize(guestLookup.guest.guest_id) !== guestId) {
-      return jsonResponse({
-        success: false,
-        error: "Guest ID does not match invitation token",
-      });
-    }
-
-    const paxCount = cleanPaxCount(
-      data.pax_count,
-      rsvpStatus,
-      guestLookup.guest.pax_limit
-    );
-
-    if (!paxCount.success) {
-      return jsonResponse({
-        success: false,
-        error: paxCount.error,
-      });
-    }
-
-    const savedResponse = {
-      response_id: Utilities.getUuid(),
-      timestamp: new Date(),
-      guest_id: guestLookup.guest.guest_id,
-      token: guestLookup.guest.token,
-      rsvp_status: rsvpStatus,
-      pax_count: paxCount.value,
-      dietary_notes: cleanText(data.dietary_notes),
-      special_notes: cleanText(data.special_notes),
-    };
-
-    // The lock prevents two quick submissions from writing over each other.
-    const lock = LockService.getScriptLock();
-    lock.waitLock(10000);
-
-    try {
-      appendRsvpResponse(spreadsheet, savedResponse);
-      updateGuestRsvp(guestsSheet, guestLookup.rowNumber, savedResponse);
-    } finally {
-      lock.releaseLock();
+    if (action === "rsvp") {
+      return saveRsvpPost(data);
     }
 
     return jsonResponse({
-      success: true,
-      message: "RSVP saved",
+      success: false,
+      error: "Invalid action",
     });
   } catch (error) {
     return jsonResponse({
@@ -208,6 +144,163 @@ function doPost(e) {
       message: error.message,
     });
   }
+}
+
+/**
+ * Saves an RSVP response.
+ *
+ * This is the original RSVP flow, moved into its own helper so doPost() can
+ * also route memory submissions without mixing the two actions.
+ */
+function saveRsvpPost(data) {
+  const token = normalize(data.token);
+  const guestId = normalize(data.guest_id);
+  const rsvpStatus = normalizeRsvpStatus(data.rsvp_status);
+
+  if (!token || !guestId || !rsvpStatus) {
+    return jsonResponse({
+      success: false,
+      error: "Invalid RSVP response",
+    });
+  }
+
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const guestsSheet = spreadsheet.getSheetByName(SHEET_NAMES.guests);
+
+  if (!guestsSheet) {
+    throw new Error("Missing sheet: " + SHEET_NAMES.guests);
+  }
+
+  const guestLookup = findGuestRowByToken(guestsSheet, token);
+
+  if (!guestLookup) {
+    return jsonResponse({
+      success: false,
+      error: "Invalid invitation link",
+    });
+  }
+
+  if (normalize(guestLookup.guest.guest_id) !== guestId) {
+    return jsonResponse({
+      success: false,
+      error: "Guest ID does not match invitation token",
+    });
+  }
+
+  const paxCount = cleanPaxCount(
+    data.pax_count,
+    rsvpStatus,
+    guestLookup.guest.pax_limit
+  );
+
+  if (!paxCount.success) {
+    return jsonResponse({
+      success: false,
+      error: paxCount.error,
+    });
+  }
+
+  const savedResponse = {
+    response_id: Utilities.getUuid(),
+    timestamp: new Date(),
+    guest_id: guestLookup.guest.guest_id,
+    token: guestLookup.guest.token,
+    rsvp_status: rsvpStatus,
+    pax_count: paxCount.value,
+    dietary_notes: cleanText(data.dietary_notes),
+    special_notes: cleanText(data.special_notes),
+  };
+
+  // The lock prevents two quick submissions from writing over each other.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    appendRsvpResponse(spreadsheet, savedResponse);
+    updateGuestRsvp(guestsSheet, guestLookup.rowNumber, savedResponse);
+  } finally {
+    lock.releaseLock();
+  }
+
+  return jsonResponse({
+    success: true,
+    message: "RSVP saved",
+  });
+}
+
+/**
+ * Saves a memory message for review.
+ *
+ * The message is not published immediately. It is saved with approved = no,
+ * so Louis & Joyce can review it before it appears on the memory board.
+ */
+function saveMemoryPost(data) {
+  const token = normalize(data.token);
+  const guestId = normalize(data.guest_id);
+  const message = cleanText(data.message);
+
+  if (!token) {
+    return jsonResponse({
+      success: false,
+      error: "Invalid invitation link",
+    });
+  }
+
+  if (!message) {
+    return jsonResponse({
+      success: false,
+      error: "Message cannot be empty",
+    });
+  }
+
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const guestsSheet = spreadsheet.getSheetByName(SHEET_NAMES.guests);
+
+  if (!guestsSheet) {
+    throw new Error("Missing sheet: " + SHEET_NAMES.guests);
+  }
+
+  const guestLookup = findGuestRowByToken(guestsSheet, token);
+
+  if (!guestLookup) {
+    return jsonResponse({
+      success: false,
+      error: "Invalid invitation link",
+    });
+  }
+
+  if (guestId && normalize(guestLookup.guest.guest_id) !== guestId) {
+    return jsonResponse({
+      success: false,
+      error: "Guest ID does not match invitation token",
+    });
+  }
+
+  const savedMessage = {
+    message_id: Utilities.getUuid(),
+    timestamp: new Date(),
+    guest_id: guestLookup.guest.guest_id,
+    guest_name: guestLookup.guest.guest_name,
+    table_id: guestLookup.guest.table_id,
+    group_name: guestLookup.guest.group_name,
+    prompt_type: cleanText(data.prompt_type),
+    message,
+    approved: "no",
+  };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    appendMemoryMessage(spreadsheet, savedMessage);
+  } finally {
+    lock.releaseLock();
+  }
+
+  return jsonResponse({
+    success: true,
+    message: "Memory saved for review",
+  });
 }
 
 /**
@@ -285,6 +378,27 @@ function getConfirmedGroupMembers(guests, guest) {
     .filter((row) => normalize(row.group_name) === groupName)
     .filter((row) => normalize(row.rsvp_status) === "confirmed")
     .map(removePrivateGuestFields);
+}
+
+/**
+ * Finds approved memory messages from the same social group as the current guest.
+ *
+ * Rules:
+ * - Uses Messages.group_name so split tables can still share one memory board.
+ * - Only approved = yes/true/approved messages are returned.
+ * - Messages from other groups and unapproved messages are never returned.
+ */
+function getApprovedGroupMessages(messages, guest) {
+  const groupName = normalize(guest.group_name);
+
+  if (!groupName) {
+    return [];
+  }
+
+  return messages
+    .filter((row) => normalize(row.group_name) === groupName)
+    .filter((row) => isApproved(row.approved))
+    .map(removePrivateMessageFields);
 }
 
 /**
@@ -478,6 +592,53 @@ function appendRsvpResponse(spreadsheet, responseData) {
   const row = headers.map((header) => {
     if (responseData[header] !== undefined) {
       return responseData[header];
+    }
+
+    return "";
+  });
+
+  sheet.appendRow(row);
+}
+
+/**
+ * Adds one memory message to the Messages sheet.
+ *
+ * Expected Messages columns:
+ * message_id | timestamp | guest_id | guest_name | table_id | group_name |
+ * prompt_type | message | approved
+ */
+function appendMemoryMessage(spreadsheet, messageData) {
+  const sheet = spreadsheet.getSheetByName(SHEET_NAMES.messages);
+
+  if (!sheet) {
+    throw new Error("Missing sheet: " + SHEET_NAMES.messages);
+  }
+
+  const headers = sheet
+    .getRange(1, 1, 1, sheet.getLastColumn())
+    .getValues()[0]
+    .map((header) => normalizeHeader(header));
+  const requiredHeaders = [
+    "message_id",
+    "timestamp",
+    "guest_id",
+    "guest_name",
+    "table_id",
+    "group_name",
+    "prompt_type",
+    "message",
+    "approved",
+  ];
+
+  requiredHeaders.forEach((header) => {
+    if (headers.indexOf(header) === -1) {
+      throw new Error("Missing column in Messages: " + header);
+    }
+  });
+
+  const row = headers.map((header) => {
+    if (messageData[header] !== undefined) {
+      return messageData[header];
     }
 
     return "";
@@ -703,6 +864,17 @@ function removePrivateGuestFields(guest) {
   delete publicGuest.invitation_status;
   delete publicGuest.plus_one_allowed;
   return publicGuest;
+}
+
+/**
+ * Removes fields that should never be part of the public memory board.
+ */
+function removePrivateMessageFields(message) {
+  const publicMessage = Object.assign({}, message);
+  delete publicMessage.whatsapp;
+  delete publicMessage.rsvp_status;
+  delete publicMessage.token;
+  return publicMessage;
 }
 
 /**
