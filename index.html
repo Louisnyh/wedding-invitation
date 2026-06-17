@@ -79,10 +79,18 @@
       <section class="scene dining-scene" aria-labelledby="dining-title">
         <div class="scene-inner dining-layout">
           <div class="scene-heading scene-reveal">
-            <p class="kicker">晚宴体验</p>
+            <p class="kicker" id="dining-kicker">晚宴体验</p>
             <h2 id="dining-title">晚餐安排</h2>
-            <p>
-              这一次的晚餐，我们会以 Served Starter、Served Main Courses、Dessert Table 的方式进行。我们希望整个晚餐的节奏是舒服的。
+            <p id="dining-copy">
+              这一次的晚餐，我们希望节奏是舒服的。
+
+              宾客入座后，第一道菜会由服务员送上。
+
+              主菜会由 服务员送到每一桌，具体上菜节奏会根据当天的服务流程安排。
+
+              甜点则会安排成 Dessert Table，让大家在晚宴后段可以比较轻松地自行取用。
+
+              我们希望大家是可以好好坐下来吃饭、聊天，也慢慢进入这个晚上。
             </p>
           </div>
           <div class="dining-steps scene-reveal" id="dining-steps"></div>
@@ -130,6 +138,8 @@
           </div>
 
           <div class="memory-panel scene-reveal">
+            <div class="memory-board" id="memory-board"></div>
+            <p class="memory-note">这段留言会出现在同一个圈子的留言区。</p>
             <div class="prompt-list" id="prompt-list" aria-label="记忆问题"></div>
             <form class="memory-form" id="memory-form">
               <label for="memory-input">你的回答</label>
