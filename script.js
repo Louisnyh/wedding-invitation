@@ -946,7 +946,7 @@ function renderRsvpFollowup(status) {
 }
 
 function setupRsvp(rsvpStatus) {
-  page.rsvpTitle.textContent = `${currentGuestName}，你会来到花房，和我们一起庆祝吗？`;
+  page.rsvpTitle.textContent = `${currentGuestName}，12月5日，可以把这个晚上留给我们吗？`;
 
   page.rsvpOptions.forEach((button) => {
     button.classList.remove("is-selected");
