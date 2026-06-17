@@ -102,6 +102,7 @@ const sampleData = {
       token: "jason-a7k29x",
       guest_name: "Jason",
       guest_type: "longLostFriends",
+      group_name: "university-friends",
       table_id: "chaos-committee",
       rsvp_status: "confirmed",
       pax_limit: 2,
@@ -111,6 +112,7 @@ const sampleData = {
       token: "marcus-f4p81q",
       guest_name: "Marcus",
       guest_type: "longLostFriends",
+      group_name: "university-friends",
       table_id: "chaos-committee",
       rsvp_status: "confirmed",
       pax_limit: 1,
@@ -120,6 +122,7 @@ const sampleData = {
       token: "weijie-n6v42m",
       guest_name: "Wei Jie",
       guest_type: "longLostFriends",
+      group_name: "university-friends",
       table_id: "chaos-committee",
       rsvp_status: "confirmed",
       pax_limit: 1,
@@ -129,6 +132,7 @@ const sampleData = {
       token: "kelvin-h8s13b",
       guest_name: "Kelvin",
       guest_type: "longLostFriends",
+      group_name: "university-friends",
       table_id: "chaos-committee",
       rsvp_status: "confirmed",
       pax_limit: 1,
@@ -138,6 +142,7 @@ const sampleData = {
       token: "amanda-k5r18n",
       guest_name: "Amanda",
       guest_type: "closeFriends",
+      group_name: "university-friends",
       table_id: "chaos-committee",
       rsvp_status: "confirmed",
       pax_limit: 1,
@@ -147,6 +152,7 @@ const sampleData = {
       token: "rachel-p2d77u",
       guest_name: "Rachel",
       guest_type: "closeFriends",
+      group_name: "university-friends",
       table_id: "chaos-committee",
       rsvp_status: "pending",
       pax_limit: 2,
@@ -156,6 +162,7 @@ const sampleData = {
       token: "auntmay-l9p31e",
       guest_name: "Aunt May",
       guest_type: "family",
+      group_name: "family",
       table_id: "family-garden",
       rsvp_status: "confirmed",
       pax_limit: 2,
@@ -165,9 +172,20 @@ const sampleData = {
       token: "uncleben-r3x55t",
       guest_name: "Uncle Ben",
       guest_type: "family",
+      group_name: "family",
       table_id: "family-garden",
       rsvp_status: "confirmed",
       pax_limit: 2,
+    },
+    {
+      guest_id: "G009",
+      token: "daniel-m3q90z",
+      guest_name: "Daniel",
+      guest_type: "longLostFriends",
+      group_name: "university-friends",
+      table_id: "garden-overflow",
+      rsvp_status: "confirmed",
+      pax_limit: 1,
     },
   ],
   messages: [
@@ -224,6 +242,7 @@ const page = {
 let selectedPrompt = sampleData.memoryPrompts[0];
 let currentGuestName = "";
 let currentGuestId = "";
+let currentGuestKey = "";
 let currentPaxLimit = null;
 
 function init() {
@@ -286,6 +305,11 @@ function createFallbackApiShape(invitationToken) {
   const confirmedTableMembers = sampleData.guests.filter(
     (item) => item.table_id === guest.table_id && item.rsvp_status === "confirmed"
   );
+  const confirmedGroupMembers = guest.group_name
+    ? sampleData.guests.filter(
+        (item) => item.group_name === guest.group_name && item.rsvp_status === "confirmed"
+      )
+    : [];
   const messages = sampleData.messages.filter(
     (item) => item.table_id === guest.table_id && isApproved(item.approved)
   );
@@ -295,6 +319,7 @@ function createFallbackApiShape(invitationToken) {
     guest,
     table,
     confirmedTableMembers,
+    confirmedGroupMembers,
     messages,
     settings: sampleData.settings,
   };
@@ -325,6 +350,10 @@ function createViewModelFromApi(apiData) {
       ),
     },
     confirmedTableMembers: (apiData.confirmedTableMembers || [])
+      .map(sanitizeGuest)
+      .filter((member) => isConfirmed(member))
+      .filter((member) => !isDeclined(member)),
+    confirmedGroupMembers: (apiData.confirmedGroupMembers || [])
       .map(sanitizeGuest)
       .filter((member) => isConfirmed(member))
       .filter((member) => !isDeclined(member)),
@@ -419,6 +448,7 @@ function renderLoadingState() {
   page.tableStory.textContent = "";
   page.tableTheme.textContent = "";
   page.memberList.innerHTML = "";
+  removeGroupMembersSection();
   page.promptList.innerHTML = "";
   page.rsvpFollowup.innerHTML = `<p class="rsvp-placeholder">邀请资料载入中。</p>`;
 }
@@ -444,6 +474,7 @@ function renderInvalidInvitation() {
 function renderInvitation(viewModel) {
   currentGuestName = viewModel.guestName;
   currentGuestId = getFirstValue(viewModel.guest, ["guest_id"], "");
+  currentGuestKey = getMemberKey(viewModel.guest);
   currentPaxLimit = viewModel.paxLimit;
   selectedPrompt = viewModel.memoryPrompts[0];
 
@@ -453,6 +484,7 @@ function renderInvitation(viewModel) {
   renderDining(viewModel.dining);
   renderTable(viewModel.table);
   renderMembers(viewModel.confirmedTableMembers);
+  renderGroupMembers(viewModel);
   renderApprovedMessages(viewModel.messages);
   renderMemoryPrompts(viewModel.memoryPrompts);
   setupMemoryForm();
@@ -526,6 +558,82 @@ function renderMembers(members) {
     `;
     page.memberList.appendChild(item);
   });
+}
+
+function renderGroupMembers(viewModel) {
+  const groupMembers = viewModel.confirmedGroupMembers;
+  const tableMembers = viewModel.confirmedTableMembers;
+
+  if (groupMembers.length <= tableMembers.length) {
+    removeGroupMembersSection();
+    return;
+  }
+
+  const tableMemberKeys = new Set(tableMembers.map(getMemberKey));
+  const displayMembers = groupMembers.filter((member) => {
+    const memberKey = getMemberKey(member);
+
+    if (!memberKey || memberKey === currentGuestKey) {
+      return false;
+    }
+
+    return !tableMemberKeys.has(memberKey);
+  });
+
+  if (!displayMembers.length) {
+    removeGroupMembersSection();
+    return;
+  }
+
+  const groupSection = ensureGroupMembersSection();
+  const groupList = groupSection.querySelector("#group-member-list");
+  groupList.innerHTML = "";
+
+  displayMembers.forEach((member) => {
+    const item = document.createElement("li");
+    item.innerHTML = `
+      <strong>${getFirstValue(member, ["guest_name", "name"], "Guest")}</strong>
+      <span>已确认出席</span>
+    `;
+    groupList.appendChild(item);
+  });
+}
+
+function ensureGroupMembersSection() {
+  const existingSection = document.querySelector("#group-members-section");
+
+  if (existingSection) {
+    return existingSection;
+  }
+
+  const section = document.createElement("section");
+  section.className = "scene members-scene";
+  section.id = "group-members-section";
+  section.setAttribute("aria-labelledby", "group-members-title");
+  section.innerHTML = `
+    <div class="scene-inner">
+      <div class="scene-heading scene-reveal is-visible">
+        <h2 id="group-members-title">这个圈子也会来</h2>
+        <p>有些人可能不会坐在同一桌，但都会在那一晚见到。</p>
+      </div>
+      <ul class="member-list scene-reveal is-visible" id="group-member-list"></ul>
+    </div>
+  `;
+
+  document.querySelector(".members-scene").insertAdjacentElement("afterend", section);
+  return section;
+}
+
+function removeGroupMembersSection() {
+  const existingSection = document.querySelector("#group-members-section");
+
+  if (existingSection) {
+    existingSection.remove();
+  }
+}
+
+function getMemberKey(member) {
+  return normalize(getFirstValue(member, ["guest_id", "token", "guest_name", "name"], ""));
 }
 
 function renderApprovedMessages(messages) {
