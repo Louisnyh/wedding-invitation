@@ -11,8 +11,11 @@
       <section class="scene hero-scene" aria-labelledby="hero-title">
         <img
           class="hero-photo"
-          src="assets/glasshouse-hero.png"
-          alt="傍晚庭院婚礼，暖色灯光照着户外座位"
+          src="assets/photos/hero-main.webp"
+          data-fallback-src="assets/photos/hero-main.PNG"
+          alt="Louis 与 Joyce 在暖色树林光线中的合照"
+          fetchpriority="high"
+          onerror="if (this.dataset.fallbackSrc && this.src.indexOf(this.dataset.fallbackSrc) === -1) { this.src = this.dataset.fallbackSrc; } else { this.hidden = true; }"
         />
         <div class="hero-overlay" aria-hidden="true"></div>
         <div class="hero-content scene-reveal">
@@ -34,9 +37,29 @@
 
       <section class="scene story-scene" aria-labelledby="story-title">
         <div class="scene-inner story-grid">
-          <div class="scene-heading scene-reveal">
-            <p class="kicker">我们的故事</p>
-            <h2 id="story-title">有些相遇，会慢慢长成一生的决定。</h2>
+          <div class="story-intro scene-reveal">
+            <div class="scene-heading">
+              <p class="kicker">我们的故事</p>
+              <h2 id="story-title">有些相遇，会慢慢长成一生的决定。</h2>
+            </div>
+            <figure class="story-photo">
+              <img
+                src="assets/photos/story-01.webp"
+                data-fallback-src="assets/photos/story-01.JPG"
+                alt="Louis 与 Joyce 的日常合照"
+                loading="lazy"
+                onerror="if (this.dataset.fallbackSrc && this.src.indexOf(this.dataset.fallbackSrc) === -1) { this.src = this.dataset.fallbackSrc; } else { this.closest('figure').hidden = true; }"
+              />
+            </figure>
+            <figure class="story-photo story-photo-optional" hidden>
+              <img
+                src="assets/photos/story-02.webp"
+                data-fallback-src="assets/photos/story-02.jpg"
+                alt="Louis 与 Joyce 的另一张日常合照"
+                loading="lazy"
+                onerror="if (this.dataset.fallbackSrc && this.src.indexOf(this.dataset.fallbackSrc) === -1) { this.src = this.dataset.fallbackSrc; } else { this.closest('figure').hidden = true; }"
+              />
+            </figure>
           </div>
           <div class="story-copy scene-reveal">
             <article>
