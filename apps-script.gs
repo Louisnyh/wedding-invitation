@@ -6,7 +6,6 @@
  *
  * IMPORTANT:
  * - Do not store real guest phone numbers or private guest data in GitHub.
- * - This API never returns the `whatsapp` column.
  * - This file does not change the approved website visual design.
  */
 
@@ -82,7 +81,6 @@ function doGet(e) {
     const confirmedTableMembers = guests
       .filter((row) => normalize(row.table_id) === normalize(guest.table_id))
       .filter((row) => normalize(row.rsvp_status) === "confirmed")
-      .filter((row) => !isDeclinedGuest(row))
       .map(removePrivateGuestFields);
 
     const approvedMessages = messages
@@ -158,13 +156,26 @@ function doPost(e) {
       });
     }
 
+    const paxCount = cleanPaxCount(
+      data.pax_count,
+      rsvpStatus,
+      guestLookup.guest.pax_limit
+    );
+
+    if (!paxCount.success) {
+      return jsonResponse({
+        success: false,
+        error: paxCount.error,
+      });
+    }
+
     const savedResponse = {
       response_id: Utilities.getUuid(),
       timestamp: new Date(),
       guest_id: guestLookup.guest.guest_id,
       token: guestLookup.guest.token,
       rsvp_status: rsvpStatus,
-      pax_count: cleanPaxCount(data.pax_count, rsvpStatus),
+      pax_count: paxCount.value,
       dietary_notes: cleanText(data.dietary_notes),
       special_notes: cleanText(data.special_notes),
     };
@@ -482,24 +493,56 @@ function normalizeRsvpStatus(value) {
 }
 
 /**
- * Attending guests need at least 1 pax. Other statuses do not reserve a count.
+ * Attending guests need at least 1 pax.
+ *
+ * If Guests.pax_limit is blank, guests can enter pax_count normally.
+ * If Guests.pax_limit has a number, pax_count cannot be higher than that limit.
  */
-function cleanPaxCount(value, rsvpStatus) {
+function cleanPaxCount(value, rsvpStatus, paxLimitValue) {
   if (rsvpStatus === "declined") {
-    return 0;
+    return {
+      success: true,
+      value: 0,
+    };
   }
 
   if (rsvpStatus !== "confirmed") {
-    return "";
+    return {
+      success: true,
+      value: "",
+    };
   }
 
   const paxCount = parseInt(value, 10);
+  const cleanCount = isNaN(paxCount) || paxCount < 1 ? 1 : paxCount;
+  const paxLimit = cleanPaxLimit(paxLimitValue);
 
-  if (isNaN(paxCount) || paxCount < 1) {
-    return 1;
+  if (paxLimit && cleanCount > paxLimit) {
+    return {
+      success: false,
+      error: "Pax count exceeds pax_limit",
+    };
   }
 
-  return paxCount;
+  return {
+    success: true,
+    value: cleanCount,
+  };
+}
+
+/**
+ * Converts Guests.pax_limit into a usable number.
+ *
+ * Blank, zero, or non-number values mean there is no guest-specific limit.
+ */
+function cleanPaxLimit(value) {
+  const paxLimit = parseInt(value, 10);
+
+  if (isNaN(paxLimit) || paxLimit < 1) {
+    return null;
+  }
+
+  return paxLimit;
 }
 
 /**
@@ -577,24 +620,15 @@ function rowToObject(headers, row) {
 /**
  * Removes private guest fields before sending API data to the website.
  *
- * Requirement:
- * - Never return whatsapp numbers in the API response.
+ * Keep this guard for older sheet copies that may still contain removed fields.
  */
 function removePrivateGuestFields(guest) {
   const publicGuest = Object.assign({}, guest);
   delete publicGuest.whatsapp;
+  delete publicGuest.table_locked;
+  delete publicGuest.invitation_status;
+  delete publicGuest.plus_one_allowed;
   return publicGuest;
-}
-
-/**
- * A declined guest should not appear inside the public table member list.
- */
-function isDeclinedGuest(guest) {
-  return (
-    normalize(guest.invitation_status) === "declined" ||
-    normalize(guest.rsvp_status) === "declined" ||
-    normalize(guest.rsvp_status) === "unable"
-  );
 }
 
 /**
