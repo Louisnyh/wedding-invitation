@@ -322,6 +322,69 @@ p {
   font-size: 0.94rem;
 }
 
+.dinner-format-block {
+  padding: 18px;
+  border: 1px solid rgba(200, 164, 95, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.54);
+}
+
+.dinner-format-label,
+.menu-preview-title {
+  display: block;
+  color: var(--champagne);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.dinner-format-block strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--eucalyptus-dark);
+  font-size: 1.02rem;
+  line-height: 1.5;
+}
+
+.dinner-format-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.dinner-format-item {
+  padding: 10px 12px;
+  color: var(--eucalyptus-dark);
+  border-left: 2px solid var(--champagne);
+  background: rgba(255, 253, 248, 0.64);
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.menu-preview {
+  display: grid;
+  gap: 12px;
+}
+
+.menu-preview-title {
+  margin: 0;
+}
+
+.menu-list {
+  display: grid;
+  gap: 12px;
+}
+
+.menu-status {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+
 .venue-links {
   display: flex;
   flex-wrap: wrap;
@@ -361,8 +424,9 @@ p {
   transform: translateY(-1px);
 }
 
-.dining-layout .scene-heading p {
+.dining-layout .scene-heading p:not(.kicker) {
   margin-top: 18px;
+  white-space: pre-line;
 }
 
 .table-scene .kicker,
@@ -428,6 +492,38 @@ p {
 
 .memory-panel {
   padding: 24px 20px;
+}
+
+.memory-board {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.memory-empty {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.memory-message-list {
+  display: grid;
+  gap: 12px;
+}
+
+.memory-message {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+
+.memory-message p {
+  color: var(--ink);
+}
+
+.memory-note {
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: 0.94rem;
 }
 
 .prompt-list {
@@ -525,6 +621,7 @@ input:focus {
   color: var(--muted);
   font-size: 0.96rem;
   line-height: 1.7;
+  white-space: pre-line;
 }
 
 .memory-confirmation:not(:empty) {
@@ -621,7 +718,6 @@ input:focus {
   }
 
   .details-grid,
-  .dining-steps,
   .member-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: 42px;
