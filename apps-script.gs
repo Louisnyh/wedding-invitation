@@ -17,6 +17,7 @@ const SHEET_NAMES = {
   rsvp: "RSVP",
   messages: "Messages",
   settings: "Settings",
+  menu: "Menu",
 };
 
 const INVITE_URL_BASE = "https://louisnyh.github.io/wedding-invitation/?token=";
@@ -57,6 +58,7 @@ function doGet(e) {
     const tables = readSheetObjects(spreadsheet, SHEET_NAMES.tables);
     const messages = readSheetObjects(spreadsheet, SHEET_NAMES.messages);
     const settings = readSettings(spreadsheet, SHEET_NAMES.settings);
+    const menu = readMenu(spreadsheet, SHEET_NAMES.menu);
 
     const guest = guests.find((row) => normalize(row.token) === token);
 
@@ -97,6 +99,7 @@ function doGet(e) {
       confirmedGroupMembers,
       messages: approvedMessages,
       settings,
+      menu,
     });
   } catch (error) {
     return jsonResponse({
@@ -212,10 +215,10 @@ function doPost(e) {
  *
  * Example sheet:
  * key          | value
- * wedding_date | 5 December 2026
+ * wedding_date_display | 2026年12月5日 · 星期六
  *
  * Becomes:
- * { wedding_date: "5 December 2026" }
+ * { wedding_date_display: "2026年12月5日 · 星期六" }
  */
 function readSettings(spreadsheet, sheetName) {
   const rows = readSheetObjects(spreadsheet, sheetName);
@@ -227,6 +230,36 @@ function readSettings(spreadsheet, sheetName) {
 
     return settings;
   }, {});
+}
+
+/**
+ * Reads confirmed menu items from the Menu sheet.
+ *
+ * Rules:
+ * - Only rows with is_confirmed = yes are returned.
+ * - Rows are sorted by display_order.
+ * - If the Menu sheet is missing or empty, return an empty list so the
+ *   frontend can safely show menu_status from Settings.
+ */
+function readMenu(spreadsheet, sheetName) {
+  const rows = readOptionalSheetObjects(spreadsheet, sheetName);
+
+  return rows
+    .filter((row) => normalize(row.is_confirmed) === "yes")
+    .sort((first, second) => getDisplayOrder(first) - getDisplayOrder(second));
+}
+
+/**
+ * Converts display_order into a number for sorting.
+ */
+function getDisplayOrder(row) {
+  const order = parseInt(row.display_order, 10);
+
+  if (isNaN(order)) {
+    return 9999;
+  }
+
+  return order;
 }
 
 /**
@@ -629,6 +662,19 @@ function readSheetObjects(spreadsheet, sheetName) {
 }
 
 /**
+ * Reads a sheet if it exists. Missing optional sheets return an empty list.
+ */
+function readOptionalSheetObjects(spreadsheet, sheetName) {
+  const sheet = spreadsheet.getSheetByName(sheetName);
+
+  if (!sheet) {
+    return [];
+  }
+
+  return readSheetObjects(spreadsheet, sheetName);
+}
+
+/**
  * Converts a spreadsheet row array into an object using the header row.
  */
 function rowToObject(headers, row) {
@@ -708,6 +754,7 @@ function formatCellValue(value) {
  *    - RSVP
  *    - Messages
  *    - Settings
+ *    - Menu
  *
  * 5. Click Deploy.
  *
@@ -734,7 +781,8 @@ function formatCellValue(value) {
  *   "confirmedTableMembers": [...],
  *   "confirmedGroupMembers": [...],
  *   "messages": [...],
- *   "settings": {...}
+ *   "settings": {...},
+ *   "menu": [...]
  * }
  *
  * Expected invalid response:
