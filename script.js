@@ -13,7 +13,12 @@ const sampleData = {
   settings: {
     visual_theme: "Soft Garden Evening",
     hero_copy:
-      "我们没有想把婚礼做得很夸张。只是希望晚风、暖灯、舒服的座位、被认真安排的晚餐，以及每一个细节，都能让来到的人感觉到：这一天，我们真的有认真准备。",
+      "我们没有想把婚礼做得很夸张。\n\n只是希望晚风、暖灯、舒服的座位、\n被认真安排的晚餐，\n以及每一个细节，\n\n都能让来到的人感觉到：\n\n这一天，\n我们真的有认真准备。",
+    story_main_title: "有些相遇，会慢慢长成一生的决定。",
+    story_meeting_copy:
+      "我们从很普通的聊天开始，后来发现彼此都愿意把生活里细小的事认真听完。",
+    story_wedding_day_copy:
+      "这场婚礼不想很夸张。我们只是希望在晚风和暖灯之间，把最重要的承诺说给最重要的人听。",
     wedding_date_display: "2026年12月5日 · 星期六",
     wedding_start_time: "晚上 6:00 开始",
     venue_name: "億家主题宴会厅 · Hall E 露天草坪",
@@ -197,9 +202,13 @@ const page = {
   heroTitle: document.querySelector("#hero-title"),
   heroDate: document.querySelector(".hero-date"),
   heroLine: document.querySelector(".hero-line"),
+  storyTitle: document.querySelector("#story-title"),
+  storyMeetingCopy: document.querySelector("#story-meeting-copy"),
+  storyWeddingDayCopy: document.querySelector("#story-wedding-day-copy"),
   guestCategoryLabel: document.querySelector("#guest-category-label"),
   personalTitle: document.querySelector("#personal-title"),
   personalMessage: document.querySelector("#personal-message"),
+  detailsTitle: document.querySelector("#details-title"),
   detailsGrid: document.querySelector("#details-grid"),
   diningTitle: document.querySelector("#dining-title"),
   diningCopy: document.querySelector(".dining-layout .scene-heading p"),
@@ -396,21 +405,25 @@ function normalizeSettings(settings) {
 function createDetails(settings) {
   return [
     {
+      key: "date",
       label: "日期",
       value: getSetting(settings, "wedding_date_display"),
       note: "请把这一天留给我们。",
     },
     {
+      key: "time",
       label: "时间",
       value: getSetting(settings, "wedding_start_time"),
       note: "建议预留一些时间抵达、入座和慢慢见面。",
     },
     {
+      key: "venue",
       label: "地点",
       value: getSetting(settings, "venue_name"),
       note: getSetting(settings, "venue_address"),
     },
     {
+      key: "dress",
       label: "着装",
       value: getSetting(settings, "dress_code"),
       note: "舒服、得体，也适合晚间户外活动即可。",
@@ -423,10 +436,12 @@ function createNavigationLinks(settings) {
     {
       label: "Google Maps",
       url: getSetting(settings, "google_maps_url", ""),
+      icon: "assets/google-maps.png",
     },
     {
       label: "Waze",
       url: getSetting(settings, "waze_url", ""),
+      icon: "assets/waze.png",
     },
   ].filter((item) => item.url);
 }
@@ -502,6 +517,7 @@ function renderInvitation(viewModel) {
   selectedPrompt = viewModel.memoryPrompts[0];
 
   renderSettings(viewModel.settings);
+  renderStory(viewModel.settings);
   renderPersonalInvitation(viewModel);
   renderDetails(viewModel.details, viewModel.navigationLinks);
   renderDining(viewModel.dining, viewModel.menu);
@@ -521,6 +537,15 @@ function renderSettings(settings) {
   page.heroLine.textContent = getSetting(settings, "hero_copy");
 }
 
+function renderStory(settings) {
+  page.storyTitle.textContent = getSetting(settings, "story_main_title");
+  page.storyMeetingCopy.textContent = getSetting(settings, "story_meeting_copy");
+  page.storyWeddingDayCopy.textContent = getSetting(
+    settings,
+    "story_wedding_day_copy"
+  );
+}
+
 function renderPersonalInvitation(viewModel) {
   page.guestCategoryLabel.textContent = viewModel.guestType.label;
   page.personalTitle.textContent = formatGuestText(
@@ -534,6 +559,7 @@ function renderPersonalInvitation(viewModel) {
 }
 
 function renderDetails(details, navigationLinks) {
+  page.detailsTitle.textContent = "这一天的细节，都为你准备好了。";
   page.detailsGrid.innerHTML = "";
 
   details.forEach((item) => {
@@ -544,35 +570,39 @@ function renderDetails(details, navigationLinks) {
       <strong>${item.value}</strong>
       <p>${item.note}</p>
     `;
+
+    if (item.key === "venue" && navigationLinks.length) {
+      detail.appendChild(createVenueNavigation(navigationLinks));
+    }
+
     page.detailsGrid.appendChild(detail);
   });
-
-  if (navigationLinks.length) {
-    renderNavigationButtons(navigationLinks);
-  }
 }
 
-function renderNavigationButtons(navigationLinks) {
-  const navigation = document.createElement("article");
-  navigation.className = "detail-item";
-  navigation.innerHTML = `
-    <span>导航</span>
-    <strong>前往会场</strong>
-    <p>选择你习惯使用的导航方式。</p>
-  `;
+function createVenueNavigation(navigationLinks) {
+  const navigation = document.createElement("div");
+  navigation.className = "venue-links";
 
   navigationLinks.forEach((link) => {
     const button = document.createElement("button");
-    button.className = "prompt-button";
+    const icon = document.createElement("img");
+    const label = document.createElement("span");
+
+    button.className = "map-button";
     button.type = "button";
-    button.textContent = link.label;
+    icon.src = link.icon;
+    icon.alt = "";
+    icon.setAttribute("aria-hidden", "true");
+    label.textContent = link.label;
+    button.appendChild(icon);
+    button.appendChild(label);
     button.addEventListener("click", () => {
       window.open(link.url, "_blank", "noopener,noreferrer");
     });
     navigation.appendChild(button);
   });
 
-  page.detailsGrid.appendChild(navigation);
+  return navigation;
 }
 
 function renderDining(dining, menu) {
