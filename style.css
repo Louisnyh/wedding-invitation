@@ -154,6 +154,42 @@ h1 {
   white-space: pre-line;
 }
 
+.wedding-countdown {
+  margin-top: 16px;
+  color: rgba(255, 253, 248, 0.9);
+}
+
+.wedding-countdown p {
+  color: rgba(255, 253, 248, 0.78);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.countdown-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+}
+
+.countdown-values span {
+  color: rgba(255, 253, 248, 0.88);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.countdown-values strong {
+  color: var(--white);
+  font-size: 1.08rem;
+  font-weight: 740;
+}
+
 .story-scene,
 .details-scene,
 .members-scene {
@@ -291,6 +327,33 @@ p {
   padding: 32px 24px;
 }
 
+.personal-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.personal-photo {
+  width: min(100%, 360px);
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 253, 248, 0.58);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.48);
+  box-shadow: 0 18px 46px rgba(38, 33, 24, 0.1);
+}
+
+.personal-photo img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  object-position: center 42%;
+}
+
+.personal-photo[hidden] {
+  display: none;
+}
+
 .personal-panel h2 {
   max-width: 12em;
 }
@@ -356,8 +419,7 @@ p {
   background: rgba(255, 253, 248, 0.54);
 }
 
-.dinner-format-label,
-.menu-preview-title {
+.dinner-format-label {
   display: block;
   color: var(--champagne);
   font-family:
@@ -391,25 +453,6 @@ p {
   background: rgba(255, 253, 248, 0.64);
   font-size: 0.94rem;
   line-height: 1.45;
-}
-
-.menu-preview {
-  display: grid;
-  gap: 12px;
-}
-
-.menu-preview-title {
-  margin: 0;
-}
-
-.menu-list {
-  display: grid;
-  gap: 12px;
-}
-
-.menu-status {
-  padding: 16px 0;
-  border-top: 1px solid var(--line);
 }
 
 .venue-links {
@@ -484,6 +527,25 @@ p {
 
 .table-story p {
   margin-top: 8px;
+}
+
+.table-check-button {
+  width: max-content;
+  min-height: 42px;
+  max-width: 100%;
+  padding: 10px 16px;
+  color: var(--eucalyptus-dark);
+  background: rgba(255, 253, 248, 0.88);
+  border: 1px solid rgba(255, 253, 248, 0.52);
+  box-shadow: 0 12px 28px rgba(16, 24, 19, 0.16);
+}
+
+.table-check-button:disabled {
+  cursor: default;
+  color: rgba(255, 253, 248, 0.78);
+  background: rgba(255, 253, 248, 0.12);
+  border-color: rgba(255, 253, 248, 0.28);
+  box-shadow: none;
 }
 
 .member-list {
@@ -742,6 +804,17 @@ input:focus {
   .memory-panel,
   .rsvp-panel {
     padding: 42px;
+  }
+
+  .personal-layout {
+    grid-template-columns: minmax(220px, 0.58fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 32px;
+  }
+
+  .personal-photo {
+    width: 100%;
+    max-width: 340px;
   }
 
   .details-grid,
