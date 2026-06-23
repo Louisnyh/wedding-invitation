@@ -21,6 +21,10 @@ const SHEET_NAMES = {
 };
 
 const INVITE_URL_BASE = "https://louisnyh.github.io/wedding-invitation/?token=";
+const DEFAULT_TABLE_RELEASE_DATE = "2026-11-28";
+const DEFAULT_TABLE_LOCKED_COPY =
+  "桌位会在婚礼前开放查询。现在先让你看看这个圈子里有哪些熟悉的人也会来到。";
+const DEFAULT_TABLE_RELEASED_COPY = "你的桌位已经开放查询。";
 
 /**
  * Returns JSON with the correct content type.
@@ -55,10 +59,10 @@ function doGet(e) {
 
     const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
     const guests = readSheetObjects(spreadsheet, SHEET_NAMES.guests);
-    const tables = readSheetObjects(spreadsheet, SHEET_NAMES.tables);
     const messages = readSheetObjects(spreadsheet, SHEET_NAMES.messages);
     const settings = readSettings(spreadsheet, SHEET_NAMES.settings);
     const menu = readMenu(spreadsheet, SHEET_NAMES.menu);
+    const tableVisibility = createTableVisibility(settings);
 
     const guest = guests.find((row) => normalize(row.token) === token);
 
@@ -69,36 +73,40 @@ function doGet(e) {
       });
     }
 
-    const table = tables.find(
-      (row) => normalize(row.table_id) === normalize(guest.table_id)
+    const confirmedGroupMembers = getConfirmedGroupMembers(
+      guests,
+      guest,
+      !tableVisibility.isReleased
     );
 
-    if (!table) {
-      return jsonResponse({
-        success: false,
-        error: "Invalid invitation link",
-      });
-    }
-
-    const confirmedTableMembers = guests
-      .filter((row) => normalize(row.table_id) === normalize(guest.table_id))
-      .filter((row) => normalize(row.rsvp_status) === "confirmed")
-      .map(removePrivateGuestFields);
-
-    const confirmedGroupMembers = getConfirmedGroupMembers(guests, guest);
-
     const approvedMessages = getApprovedGroupMessages(messages, guest);
-
-    return jsonResponse({
+    const response = {
       success: true,
-      guest: removePrivateGuestFields(guest),
-      table,
-      confirmedTableMembers,
+      guest: removePrivateGuestFields(guest, {
+        hideTable: !tableVisibility.isReleased,
+      }),
       confirmedGroupMembers,
       messages: approvedMessages,
       settings,
       menu,
-    });
+      tableVisibility,
+    };
+
+    if (tableVisibility.isReleased) {
+      const tables = readSheetObjects(spreadsheet, SHEET_NAMES.tables);
+      const table = tables.find(
+        (row) => normalize(row.table_id) === normalize(guest.table_id)
+      );
+      const confirmedTableMembers = guests
+        .filter((row) => normalize(row.table_id) === normalize(guest.table_id))
+        .filter((row) => normalize(row.rsvp_status) === "confirmed")
+        .map(removePrivateGuestFields);
+
+      response.table = table || {};
+      response.confirmedTableMembers = confirmedTableMembers;
+    }
+
+    return jsonResponse(response);
   } catch (error) {
     return jsonResponse({
       success: false,
@@ -343,6 +351,62 @@ function readMenu(spreadsheet, sheetName) {
 }
 
 /**
+ * Decides whether final table assignments may be shown publicly.
+ *
+ * table_check_enabled = yes works as a manual release switch.
+ * table_release_date is the automatic release date in yyyy-MM-dd format.
+ */
+function createTableVisibility(settings) {
+  const releaseDate = getSettingValue(
+    settings,
+    "table_release_date",
+    DEFAULT_TABLE_RELEASE_DATE
+  );
+  const isManualRelease =
+    normalize(getSettingValue(settings, "table_check_enabled", "no")) === "yes";
+  const isReleased = isManualRelease || isDateOnOrAfterRelease(releaseDate);
+
+  return {
+    isReleased,
+    releaseDate,
+    message: isReleased
+      ? getSettingValue(settings, "table_released_copy", DEFAULT_TABLE_RELEASED_COPY)
+      : getSettingValue(settings, "table_locked_copy", DEFAULT_TABLE_LOCKED_COPY),
+  };
+}
+
+/**
+ * Compares today's date against the release date using the script timezone.
+ */
+function isDateOnOrAfterRelease(releaseDate) {
+  const cleanReleaseDate = String(releaseDate || DEFAULT_TABLE_RELEASE_DATE).trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanReleaseDate)) {
+    return false;
+  }
+
+  const timezone = Session.getScriptTimeZone() || "Asia/Kuala_Lumpur";
+  const today = Utilities.formatDate(new Date(), timezone, "yyyy-MM-dd");
+  return today >= cleanReleaseDate;
+}
+
+/**
+ * Reads one Settings value with a safe fallback.
+ */
+function getSettingValue(settings, key, fallback) {
+  if (
+    !settings ||
+    settings[key] === undefined ||
+    settings[key] === null ||
+    settings[key] === ""
+  ) {
+    return fallback;
+  }
+
+  return settings[key];
+}
+
+/**
  * Converts display_order into a number for sorting.
  */
 function getDisplayOrder(row) {
@@ -367,7 +431,7 @@ function getDisplayOrder(row) {
  * The current guest and same-table guests may still be included here so the
  * frontend can compare total group count against same-table count.
  */
-function getConfirmedGroupMembers(guests, guest) {
+function getConfirmedGroupMembers(guests, guest, hideTable) {
   const groupName = normalize(guest.group_name);
 
   if (!groupName) {
@@ -377,7 +441,7 @@ function getConfirmedGroupMembers(guests, guest) {
   return guests
     .filter((row) => normalize(row.group_name) === groupName)
     .filter((row) => normalize(row.rsvp_status) === "confirmed")
-    .map(removePrivateGuestFields);
+    .map((row) => removePrivateGuestFields(row, { hideTable }));
 }
 
 /**
@@ -857,12 +921,17 @@ function rowToObject(headers, row) {
  *
  * Keep this guard for older sheet copies that may still contain removed fields.
  */
-function removePrivateGuestFields(guest) {
+function removePrivateGuestFields(guest, options) {
   const publicGuest = Object.assign({}, guest);
   delete publicGuest.whatsapp;
   delete publicGuest.table_locked;
   delete publicGuest.invitation_status;
   delete publicGuest.plus_one_allowed;
+
+  if (options && options.hideTable) {
+    delete publicGuest.table_id;
+  }
+
   return publicGuest;
 }
 
