@@ -22,6 +22,20 @@
           <p class="kicker">Soft Garden Evening</p>
           <h1 id="hero-title">Louis & Joyce</h1>
           <p class="hero-date">2026年12月5日 · 星期六</p>
+          <div
+            class="wedding-countdown"
+            id="wedding-countdown"
+            data-target="2026-12-05T18:00:00+08:00"
+            aria-live="polite"
+          >
+            <p>距离这一天还有</p>
+            <div class="countdown-values">
+              <span><strong id="countdown-days">--</strong> 天</span>
+              <span><strong id="countdown-hours">--</strong> 小时</span>
+              <span><strong id="countdown-minutes">--</strong> 分钟</span>
+              <span><strong id="countdown-seconds">--</strong> 秒</span>
+            </div>
+          </div>
           <p class="hero-line">我们没有想把婚礼做得很夸张。
 
 只是希望晚风、暖灯、舒服的座位、
@@ -79,7 +93,15 @@
       </section>
 
       <section class="scene invitation-scene" aria-labelledby="personal-title">
-        <div class="scene-inner">
+        <div class="scene-inner personal-layout">
+          <figure class="personal-photo scene-reveal">
+            <img
+              src="assets/photos/personal-note.webp"
+              alt="Louis 与 Joyce 的婚礼合照"
+              loading="lazy"
+              onerror="this.closest('figure').hidden = true;"
+            />
+          </figure>
           <div class="personal-panel scene-reveal">
             <p class="kicker" id="guest-category-label">专属邀请</p>
             <h2 id="personal-title"></h2>
@@ -109,11 +131,13 @@
 
               宾客入座后，第一道菜会由服务员送上。
 
-              主菜会由 服务员送到每一桌，具体上菜节奏会根据当天的服务流程安排。
+              主菜会由 service team 送到每一桌，具体上菜节奏会根据当天的服务流程安排。
 
               甜点则会安排成 Dessert Table，让大家在晚宴后段可以比较轻松地自行取用。
 
-              我们希望大家是可以好好坐下来吃饭、聊天，也慢慢进入这个晚上。
+              我们希望大家不用一直想着下一道流程，
+
+              而是可以好好坐下来吃饭、聊天，也慢慢进入这个晚上。
             </p>
           </div>
           <div class="dining-steps scene-reveal" id="dining-steps"></div>
@@ -123,28 +147,30 @@
       <section class="scene table-scene" aria-labelledby="table-title">
         <div class="scene-inner table-layout">
           <div class="scene-heading scene-reveal">
-            <p class="kicker">你的餐桌</p>
-            <h2 id="table-title"></h2>
+            <p class="kicker" id="table-kicker">圈子预览</p>
+            <h2 id="table-title">先看看这个圈子</h2>
           </div>
           <div class="table-story scene-reveal">
             <div>
-              <span>餐桌故事</span>
-              <p id="table-story"></p>
+              <span id="table-story-label">开放查询</span>
+              <p id="table-story">
+                桌位会在婚礼前开放查询。现在先让你看看这个圈子里有哪些熟悉的人也会来到。
+              </p>
             </div>
             <div>
-              <span>餐桌主题</span>
-              <p id="table-theme"></p>
+              <span id="table-theme-label">这个圈子</span>
+              <p id="table-theme">这个圈子</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="scene members-scene" aria-labelledby="members-title">
+      <section class="scene members-scene" id="members-section" aria-labelledby="members-title">
         <div class="scene-inner">
           <div class="scene-heading scene-reveal">
-            <p class="kicker">同桌宾客</p>
-            <h2 id="members-title">会坐在你身边的人。</h2>
-            <p>这些名字，已经为十二月的这一晚点头赴约。</p>
+            <p class="kicker" id="members-kicker">熟悉的人</p>
+            <h2 id="members-title">这个圈子也会来</h2>
+            <p id="members-copy">桌位还没开放，但这些熟悉的人也会来到那一晚。</p>
           </div>
           <ul class="member-list scene-reveal" id="member-list"></ul>
         </div>
