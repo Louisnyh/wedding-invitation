@@ -19,11 +19,15 @@ const DINNER_FORMAT_ITEMS = [
 const WEDDING_DATETIME_FALLBACK = "2026-12-05T18:00:00+08:00";
 const TABLE_RELEASE_DATE_FALLBACK = "2026-11-28";
 const TABLE_LOCKED_COPY =
-  "桌位会在婚礼前开放查询。现在先让你看看这个圈子里有哪些熟悉的人也会来到。";
+  "桌位会在婚礼前开放查询。现在先让你看看，那天会有哪些熟悉的人也会来到。";
 const TABLE_RELEASED_COPY = "你的桌位已经开放查询。";
+const TABLE_LOCKED_BODY =
+  "我们会在接近婚礼时开放 Check Your Table。\n\n现在先让你看看，\n那天会有哪些熟悉的人也会来到。";
+const TABLE_RELEASED_BODY =
+  "婚礼当天，你会坐在这里。\n也许旁边有熟悉的人，也许也有一些新的面孔。\n希望这一桌，会让你觉得舒服。";
 
 const MEMORY_SUCCESS_MESSAGE =
-  "谢谢你留下这段记忆。\n我们会先看过，再放到这个圈子的留言区。";
+  "谢谢你留下这段记忆。\n我们会先看过，再放到同一群朋友的留言区。";
 
 const SUBMISSION_ERROR_MESSAGE =
   "提交失败，请稍后再试，或直接联系 Louis / Joyce。";
@@ -377,14 +381,14 @@ function createViewModelFromApi(apiData) {
     settings,
     guest,
     guestName,
-    groupName: getFirstValue(guest, ["group_name"], "这个圈子"),
+    groupName: getFirstValue(guest, ["group_name"], "熟悉面孔"),
     rsvpStatus: normalize(getFirstValue(guest, ["rsvp_status"], "")),
     paxLimit: cleanPaxLimit(getFirstValue(guest, ["pax_limit"], "")),
     guestType,
     tableVisibility,
     table: {
       id: getFirstValue(guest, ["table_id"], getFirstValue(table, ["table_id"], "")),
-      name: getFirstValue(table, ["table_name", "name"], "你的餐桌"),
+      name: getFirstValue(table, ["table_name", "name"], "婚礼当天的位置"),
       story: getFirstValue(table, ["table_story", "story"], ""),
       theme: getFirstValue(
         table,
@@ -399,7 +403,7 @@ function createViewModelFromApi(apiData) {
     confirmedGroupMembers: (apiData.confirmedGroupMembers || [])
       .map((member) =>
         sanitizeGuest(member, {
-          hideTable: !tableVisibility.isReleased,
+          hideTable: true,
         })
       )
       .filter((member) => isConfirmed(member))
@@ -797,22 +801,26 @@ function renderTable(viewModel) {
   clearTableCheckButton();
 
   if (!viewModel.tableVisibility.isReleased) {
-    page.tableKicker.textContent = "圈子预览";
-    page.tableTitle.textContent = "先看看这个圈子";
-    page.tableStoryLabel.textContent = "开放查询";
-    page.tableStory.textContent = viewModel.tableVisibility.message;
-    page.tableThemeLabel.textContent = "这个圈子";
-    page.tableTheme.textContent = formatGroupName(viewModel.groupName);
-    appendTableCheckButton("婚礼前开放查询", true);
+    page.tableKicker.textContent = "座位安排";
+    page.tableTitle.textContent = "桌位会在婚礼前开放查询。";
+    page.tableStoryLabel.textContent = "Check Your Table";
+    page.tableStory.textContent = TABLE_LOCKED_BODY;
+    setTableThemeVisible(false);
+    appendTableCheckButton("婚礼前开放 Check Your Table", true);
     return;
   }
 
-  page.tableKicker.textContent = "查看你的桌位";
-  page.tableTitle.textContent = viewModel.table.name;
-  page.tableStoryLabel.textContent = "餐桌故事";
-  page.tableStory.textContent = viewModel.table.story || viewModel.tableVisibility.message;
-  page.tableThemeLabel.textContent = "桌位编号";
-  page.tableTheme.textContent = viewModel.table.id || "婚礼前会再确认";
+  page.tableKicker.textContent = "Table Check";
+  page.tableTitle.textContent = "我们为你留好了位置。";
+  page.tableStoryLabel.textContent = viewModel.table.id
+    ? `桌位 ${viewModel.table.id}`
+    : "你的桌位";
+  page.tableStory.textContent = viewModel.table.name || "婚礼当天的位置";
+  page.tableThemeLabel.textContent = "给你的安排";
+  page.tableTheme.textContent = viewModel.table.story
+    ? `${TABLE_RELEASED_BODY}\n\n${viewModel.table.story}`
+    : TABLE_RELEASED_BODY;
+  setTableThemeVisible(true);
   appendTableCheckButton("Check Your Table", false);
 }
 
@@ -835,6 +843,14 @@ function appendTableCheckButton(label, isDisabled) {
   document.querySelector(".table-story").appendChild(button);
 }
 
+function setTableThemeVisible(isVisible) {
+  const themeItem = page.tableThemeLabel.closest("div");
+
+  if (themeItem) {
+    themeItem.hidden = !isVisible;
+  }
+}
+
 function renderMembers(viewModel) {
   const isReleased = viewModel.tableVisibility.isReleased;
   const members = isReleased
@@ -844,31 +860,30 @@ function renderMembers(viewModel) {
       );
 
   page.membersSection.hidden = false;
-  page.membersKicker.textContent = isReleased ? "同桌宾客" : "熟悉的人";
+  page.membersKicker.textContent = isReleased ? "同桌宾客" : "熟悉面孔";
   page.membersTitle.textContent = isReleased
-    ? "会坐在你身边的人。"
-    : "这个圈子也会来";
+    ? "会与你同桌的人"
+    : "那晚，你会见到一些熟悉的人。";
   page.membersCopy.textContent = isReleased
-    ? "这些名字，已经为十二月的这一晚点头赴约。"
-    : "桌位还没开放，但这些熟悉的人也会来到那一晚。";
+    ? "这些名字，会在那一晚和你坐在同一桌。"
+    : "有些人可能不会坐在同一桌，\n但都会在那一晚出现。";
   page.memberList.innerHTML = "";
 
   if (!members.length) {
     const item = document.createElement("li");
-    item.innerHTML = `
-      <strong>名单还在慢慢确认中。</strong>
-      <span>等大家陆续回复后，这里会更热闹一点。</span>
-    `;
+    item.className = "member-empty";
+    item.textContent = isReleased
+      ? "同桌宾客还在陆续确认中。等确认多一些，这里会慢慢热闹起来。"
+      : "大家还在陆续回复中。等确认多一些，这里会慢慢热闹起来。";
     page.memberList.appendChild(item);
     return;
   }
 
   members.forEach((member) => {
     const item = document.createElement("li");
-    item.innerHTML = `
-      <strong>${getFirstValue(member, ["guest_name", "name"], "Guest")}</strong>
-      <span>已确认出席</span>
-    `;
+    const name = document.createElement("strong");
+    name.textContent = getFirstValue(member, ["guest_name", "name"], "Guest");
+    item.appendChild(name);
     page.memberList.appendChild(item);
   });
 }
@@ -909,10 +924,9 @@ function renderGroupMembers(viewModel) {
 
   displayMembers.forEach((member) => {
     const item = document.createElement("li");
-    item.innerHTML = `
-      <strong>${getFirstValue(member, ["guest_name", "name"], "Guest")}</strong>
-      <span>已确认出席</span>
-    `;
+    const name = document.createElement("strong");
+    name.textContent = getFirstValue(member, ["guest_name", "name"], "Guest");
+    item.appendChild(name);
     groupList.appendChild(item);
   });
 }
@@ -931,8 +945,9 @@ function ensureGroupMembersSection() {
   section.innerHTML = `
     <div class="scene-inner">
       <div class="scene-heading scene-reveal is-visible">
-        <h2 id="group-members-title">这个圈子也会来</h2>
-        <p>有些人可能不会坐在同一桌，但都会在那一晚见到。</p>
+        <p class="kicker">熟悉面孔</p>
+        <h2 id="group-members-title">还有一些熟悉的人，也会在现场。</h2>
+        <p>他们可能不会坐在同一桌，<br />但都会在那一晚出现。</p>
       </div>
       <ul class="member-list scene-reveal is-visible" id="group-member-list"></ul>
     </div>
@@ -952,16 +967,6 @@ function removeGroupMembersSection() {
 
 function getMemberKey(member) {
   return normalize(getFirstValue(member, ["guest_id", "token", "guest_name", "name"], ""));
-}
-
-function formatGroupName(groupName) {
-  const cleanName = String(groupName || "").trim();
-
-  if (!cleanName) {
-    return "这个圈子";
-  }
-
-  return cleanName.replace(/[-_]+/g, " ");
 }
 
 function renderApprovedMessages(messages) {
