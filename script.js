@@ -8,13 +8,19 @@ const RSVP_STATUS_MAP = {
 };
 
 const DINNER_EXPERIENCE_COPY =
-  "这一次的晚餐，我们希望节奏是舒服的。\n\n宾客入座后，第一道菜会由服务员送上。\n\n主菜会由 服务员送到每一桌，具体上菜节奏会根据当天的服务流程安排。\n\n甜点则会安排成 Dessert Table，让大家在晚宴后段可以比较轻松地自行取用。\n\n我们希望大家是可以好好坐下来吃饭、聊天，也慢慢进入这个晚上。";
+  "这一次的晚餐，我们希望节奏是舒服的。\n\n宾客入座后，第一道菜会由服务员送上。\n\n主菜会由 service team 送到每一桌，具体上菜节奏会根据当天的服务流程安排。\n\n甜点则会安排成 Dessert Table，让大家在晚宴后段可以比较轻松地自行取用。\n\n我们希望大家不用一直想着下一道流程，\n\n而是可以好好坐下来吃饭、聊天，也慢慢进入这个晚上。";
 
 const DINNER_FORMAT_ITEMS = [
   "Served Starter",
   "Served Main Courses",
   "Dessert Table",
 ];
+
+const WEDDING_DATETIME_FALLBACK = "2026-12-05T18:00:00+08:00";
+const TABLE_RELEASE_DATE_FALLBACK = "2026-11-28";
+const TABLE_LOCKED_COPY =
+  "桌位会在婚礼前开放查询。现在先让你看看这个圈子里有哪些熟悉的人也会来到。";
+const TABLE_RELEASED_COPY = "你的桌位已经开放查询。";
 
 const MEMORY_SUCCESS_MESSAGE =
   "谢谢你留下这段记忆。\n我们会先看过，再放到这个圈子的留言区。";
@@ -48,6 +54,11 @@ const sampleData = {
     dinner_format: "Served Starter + Served Main Courses + Dessert Table",
     dinner_copy: DINNER_EXPERIENCE_COPY,
     menu_status: "完整菜单确认后会再更新。",
+    wedding_datetime_iso: WEDDING_DATETIME_FALLBACK,
+    table_check_enabled: "no",
+    table_release_date: TABLE_RELEASE_DATE_FALLBACK,
+    table_locked_copy: TABLE_LOCKED_COPY,
+    table_released_copy: TABLE_RELEASED_COPY,
   },
   guestTypes: {
     family: {
@@ -220,6 +231,12 @@ const page = {
   heroTitle: document.querySelector("#hero-title"),
   heroDate: document.querySelector(".hero-date"),
   heroLine: document.querySelector(".hero-line"),
+  countdown: document.querySelector("#wedding-countdown"),
+  countdownValues: document.querySelector(".countdown-values"),
+  countdownDays: document.querySelector("#countdown-days"),
+  countdownHours: document.querySelector("#countdown-hours"),
+  countdownMinutes: document.querySelector("#countdown-minutes"),
+  countdownSeconds: document.querySelector("#countdown-seconds"),
   storyTitle: document.querySelector("#story-title"),
   storyMeetingCopy: document.querySelector("#story-meeting-copy"),
   storyWeddingDayCopy: document.querySelector("#story-wedding-day-copy"),
@@ -232,9 +249,16 @@ const page = {
   diningTitle: document.querySelector("#dining-title"),
   diningCopy: document.querySelector("#dining-copy"),
   diningSteps: document.querySelector("#dining-steps"),
+  tableKicker: document.querySelector("#table-kicker"),
   tableTitle: document.querySelector("#table-title"),
+  tableStoryLabel: document.querySelector("#table-story-label"),
   tableStory: document.querySelector("#table-story"),
+  tableThemeLabel: document.querySelector("#table-theme-label"),
   tableTheme: document.querySelector("#table-theme"),
+  membersSection: document.querySelector("#members-section"),
+  membersKicker: document.querySelector("#members-kicker"),
+  membersTitle: document.querySelector("#members-title"),
+  membersCopy: document.querySelector("#members-copy"),
   memberList: document.querySelector("#member-list"),
   memoryBoard: document.querySelector("#memory-board"),
   promptList: document.querySelector("#prompt-list"),
@@ -253,6 +277,7 @@ let currentGuestName = "";
 let currentGuestId = "";
 let currentGuestKey = "";
 let currentPaxLimit = null;
+let countdownTimer = null;
 
 function init() {
   setupReveal();
@@ -322,6 +347,7 @@ function createFallbackApiShape(invitationToken) {
   const messages = sampleData.messages.filter(
     (item) => item.group_name === guest.group_name && isApproved(item.approved)
   );
+  const tableVisibility = createTableVisibility(null, sampleData.settings);
 
   return {
     success: true,
@@ -332,13 +358,17 @@ function createFallbackApiShape(invitationToken) {
     messages,
     settings: sampleData.settings,
     menu: sampleData.menu,
+    tableVisibility,
   };
 }
 
 function createViewModelFromApi(apiData) {
-  const guest = sanitizeGuest(apiData.guest || {});
-  const table = apiData.table || {};
   const settings = normalizeSettings(apiData.settings);
+  const tableVisibility = createTableVisibility(apiData.tableVisibility, settings);
+  const guest = sanitizeGuest(apiData.guest || {}, {
+    hideTable: !tableVisibility.isReleased,
+  });
+  const table = tableVisibility.isReleased ? apiData.table || {} : {};
   const guestName = getFirstValue(guest, ["guest_name", "name"], "Guest");
   const guestTypeKey = getFirstValue(guest, ["guest_type", "type"], "");
   const guestType = getGuestTypeCopy(guestTypeKey, guest);
@@ -347,10 +377,13 @@ function createViewModelFromApi(apiData) {
     settings,
     guest,
     guestName,
+    groupName: getFirstValue(guest, ["group_name"], "这个圈子"),
     rsvpStatus: normalize(getFirstValue(guest, ["rsvp_status"], "")),
     paxLimit: cleanPaxLimit(getFirstValue(guest, ["pax_limit"], "")),
     guestType,
+    tableVisibility,
     table: {
+      id: getFirstValue(guest, ["table_id"], getFirstValue(table, ["table_id"], "")),
       name: getFirstValue(table, ["table_name", "name"], "你的餐桌"),
       story: getFirstValue(table, ["table_story", "story"], ""),
       theme: getFirstValue(
@@ -364,7 +397,11 @@ function createViewModelFromApi(apiData) {
       .filter((member) => isConfirmed(member))
       .filter((member) => !isDeclined(member)),
     confirmedGroupMembers: (apiData.confirmedGroupMembers || [])
-      .map(sanitizeGuest)
+      .map((member) =>
+        sanitizeGuest(member, {
+          hideTable: !tableVisibility.isReleased,
+        })
+      )
       .filter((member) => isConfirmed(member))
       .filter((member) => !isDeclined(member)),
     messages: (apiData.messages || [])
@@ -373,7 +410,6 @@ function createViewModelFromApi(apiData) {
     details: createDetails(settings),
     navigationLinks: createNavigationLinks(settings),
     dining: createDining(settings),
-    menu: createMenu(apiData.menu),
     memoryPrompts: sampleData.memoryPrompts,
   };
 }
@@ -420,6 +456,56 @@ function normalizeSettings(settings) {
   }
 
   return settings;
+}
+
+function createTableVisibility(apiVisibility, settings) {
+  if (apiVisibility && typeof apiVisibility === "object") {
+    return {
+      isReleased: Boolean(apiVisibility.isReleased),
+      releaseDate: getFirstValue(
+        apiVisibility,
+        ["releaseDate"],
+        getSetting(settings, "table_release_date", TABLE_RELEASE_DATE_FALLBACK)
+      ),
+      message: getFirstValue(
+        apiVisibility,
+        ["message"],
+        Boolean(apiVisibility.isReleased) ? TABLE_RELEASED_COPY : TABLE_LOCKED_COPY
+      ),
+    };
+  }
+
+  const releaseDate = getSetting(
+    settings,
+    "table_release_date",
+    TABLE_RELEASE_DATE_FALLBACK
+  );
+  const isReleased =
+    normalize(getSetting(settings, "table_check_enabled", "no")) === "yes" ||
+    isTodayOnOrAfter(releaseDate);
+
+  return {
+    isReleased,
+    releaseDate,
+    message: isReleased
+      ? getSetting(settings, "table_released_copy", TABLE_RELEASED_COPY)
+      : getSetting(settings, "table_locked_copy", TABLE_LOCKED_COPY),
+  };
+}
+
+function isTodayOnOrAfter(releaseDate) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(releaseDate || ""))) {
+    return false;
+  }
+
+  const today = new Date();
+  const todayKey = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0"),
+  ].join("-");
+
+  return todayKey >= releaseDate;
 }
 
 function createDetails(settings) {
@@ -471,7 +557,6 @@ function createDining(settings) {
     title: getSetting(settings, "dinner_style_title"),
     formatItems: createDinnerFormatItems(getSetting(settings, "dinner_format")),
     copy: getDinnerCopy(settings),
-    menuStatus: getSetting(settings, "menu_status"),
   };
 }
 
@@ -492,22 +577,6 @@ function getDinnerCopy(settings) {
   }
 
   return copy;
-}
-
-function createMenu(menu) {
-  return (menu || [])
-    .filter((item) => normalize(getFirstValue(item, ["is_confirmed"], "")) === "yes")
-    .sort((first, second) => getDisplayOrder(first) - getDisplayOrder(second));
-}
-
-function getDisplayOrder(item) {
-  const displayOrder = parseInt(getFirstValue(item, ["display_order"], ""), 10);
-
-  if (isNaN(displayOrder)) {
-    return 9999;
-  }
-
-  return displayOrder;
 }
 
 function getSetting(settings, key, fallback = sampleData.settings[key]) {
@@ -559,9 +628,9 @@ function renderInvitation(viewModel) {
   renderStory(viewModel.settings);
   renderPersonalInvitation(viewModel);
   renderDetails(viewModel.details, viewModel.navigationLinks);
-  renderDining(viewModel.dining, viewModel.menu);
-  renderTable(viewModel.table);
-  renderMembers(viewModel.confirmedTableMembers);
+  renderDining(viewModel.dining);
+  renderTable(viewModel);
+  renderMembers(viewModel);
   renderGroupMembers(viewModel);
   renderApprovedMessages(viewModel.messages);
   renderMemoryPrompts(viewModel.memoryPrompts);
@@ -574,6 +643,55 @@ function renderSettings(settings) {
   page.heroTitle.textContent = "Louis & Joyce";
   page.heroDate.textContent = getSetting(settings, "wedding_date_display");
   page.heroLine.textContent = getSetting(settings, "hero_copy");
+  setupCountdown(getSetting(settings, "wedding_datetime_iso", WEDDING_DATETIME_FALLBACK));
+}
+
+function setupCountdown(targetValue) {
+  if (!page.countdown) {
+    return;
+  }
+
+  const targetTime = new Date(targetValue || WEDDING_DATETIME_FALLBACK).getTime();
+  const safeTargetTime = isNaN(targetTime)
+    ? new Date(WEDDING_DATETIME_FALLBACK).getTime()
+    : targetTime;
+
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+  }
+
+  const updateCountdown = () => {
+    const remaining = safeTargetTime - Date.now();
+
+    if (remaining <= 0) {
+      page.countdown.innerHTML = `<p>今天，我们见面。</p>`;
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+      return;
+    }
+
+    const totalSeconds = Math.floor(remaining / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    page.countdownDays.textContent = String(days);
+    page.countdownHours.textContent = padCountdownValue(hours);
+    page.countdownMinutes.textContent = padCountdownValue(minutes);
+    page.countdownSeconds.textContent = padCountdownValue(seconds);
+  };
+
+  updateCountdown();
+  if (safeTargetTime <= Date.now()) {
+    return;
+  }
+
+  countdownTimer = setInterval(updateCountdown, 1000);
+}
+
+function padCountdownValue(value) {
+  return String(value).padStart(2, "0");
 }
 
 function renderStory(settings) {
@@ -644,14 +762,13 @@ function createVenueNavigation(navigationLinks) {
   return navigation;
 }
 
-function renderDining(dining, menu) {
+function renderDining(dining) {
   page.diningKicker.textContent = "晚宴体验";
   page.diningTitle.textContent = dining.title;
   page.diningCopy.textContent = dining.copy;
   page.diningSteps.innerHTML = "";
 
   appendDinnerFormat(dining.formatItems);
-  appendMenuPreview(menu, dining.menuStatus);
 }
 
 function appendDinnerFormat(formatItems) {
@@ -676,74 +793,75 @@ function appendDinnerFormat(formatItems) {
   page.diningSteps.appendChild(formatBlock);
 }
 
-function appendMenuPreview(menu, menuStatus) {
-  const menuSection = document.createElement("section");
-  menuSection.className = "menu-preview";
+function renderTable(viewModel) {
+  clearTableCheckButton();
 
-  if (!menu.length) {
-    const status = document.createElement("p");
-    status.className = "menu-status";
-    status.textContent = menuStatus || "完整菜单确认后会再更新。";
-    menuSection.appendChild(status);
-    page.diningSteps.appendChild(menuSection);
+  if (!viewModel.tableVisibility.isReleased) {
+    page.tableKicker.textContent = "圈子预览";
+    page.tableTitle.textContent = "先看看这个圈子";
+    page.tableStoryLabel.textContent = "开放查询";
+    page.tableStory.textContent = viewModel.tableVisibility.message;
+    page.tableThemeLabel.textContent = "这个圈子";
+    page.tableTheme.textContent = formatGroupName(viewModel.groupName);
+    appendTableCheckButton("婚礼前开放查询", true);
     return;
   }
 
-  const title = document.createElement("h3");
-  const list = document.createElement("div");
-
-  title.className = "menu-preview-title";
-  title.textContent = "菜单预览";
-  list.className = "menu-list";
-  menuSection.appendChild(title);
-  menuSection.appendChild(list);
-
-  menu.forEach((item) => {
-    list.appendChild(createMenuCard({
-      label: getFirstValue(item, ["course_type"], "Menu"),
-      title: createMenuItemTitle(item),
-      note: getFirstValue(item, ["description"], ""),
-    }));
-  });
-
-  page.diningSteps.appendChild(menuSection);
+  page.tableKicker.textContent = "查看你的桌位";
+  page.tableTitle.textContent = viewModel.table.name;
+  page.tableStoryLabel.textContent = "餐桌故事";
+  page.tableStory.textContent = viewModel.table.story || viewModel.tableVisibility.message;
+  page.tableThemeLabel.textContent = "桌位编号";
+  page.tableTheme.textContent = viewModel.table.id || "婚礼前会再确认";
+  appendTableCheckButton("Check Your Table", false);
 }
 
-function createMenuCard(item) {
-  const step = document.createElement("article");
-  const label = document.createElement("span");
-  const title = document.createElement("strong");
-  const note = document.createElement("p");
+function clearTableCheckButton() {
+  const existingButton = document.querySelector("#table-check-button");
 
-  step.className = "dining-step";
-  label.textContent = item.label;
-  title.textContent = item.title;
-  note.textContent = item.note;
-  step.appendChild(label);
-  step.appendChild(title);
-  step.appendChild(note);
-  return step;
-}
-
-function createMenuItemTitle(item) {
-  const chineseName = getFirstValue(item, ["course_name_cn"], "");
-  const englishName = getFirstValue(item, ["course_name_en"], "");
-
-  if (chineseName && englishName) {
-    return `${chineseName} / ${englishName}`;
+  if (existingButton) {
+    existingButton.remove();
   }
-
-  return chineseName || englishName || "菜单项目";
 }
 
-function renderTable(table) {
-  page.tableTitle.textContent = table.name;
-  page.tableStory.textContent = table.story;
-  page.tableTheme.textContent = table.theme;
+function appendTableCheckButton(label, isDisabled) {
+  const button = document.createElement("button");
+  button.id = "table-check-button";
+  button.className = "table-check-button";
+  button.type = "button";
+  button.textContent = label;
+  button.disabled = isDisabled;
+  button.setAttribute("aria-disabled", String(isDisabled));
+  document.querySelector(".table-story").appendChild(button);
 }
 
-function renderMembers(members) {
+function renderMembers(viewModel) {
+  const isReleased = viewModel.tableVisibility.isReleased;
+  const members = isReleased
+    ? viewModel.confirmedTableMembers
+    : viewModel.confirmedGroupMembers.filter(
+        (member) => getMemberKey(member) !== currentGuestKey
+      );
+
+  page.membersSection.hidden = false;
+  page.membersKicker.textContent = isReleased ? "同桌宾客" : "熟悉的人";
+  page.membersTitle.textContent = isReleased
+    ? "会坐在你身边的人。"
+    : "这个圈子也会来";
+  page.membersCopy.textContent = isReleased
+    ? "这些名字，已经为十二月的这一晚点头赴约。"
+    : "桌位还没开放，但这些熟悉的人也会来到那一晚。";
   page.memberList.innerHTML = "";
+
+  if (!members.length) {
+    const item = document.createElement("li");
+    item.innerHTML = `
+      <strong>名单还在慢慢确认中。</strong>
+      <span>等大家陆续回复后，这里会更热闹一点。</span>
+    `;
+    page.memberList.appendChild(item);
+    return;
+  }
 
   members.forEach((member) => {
     const item = document.createElement("li");
@@ -756,6 +874,11 @@ function renderMembers(members) {
 }
 
 function renderGroupMembers(viewModel) {
+  if (!viewModel.tableVisibility.isReleased) {
+    removeGroupMembersSection();
+    return;
+  }
+
   const groupMembers = viewModel.confirmedGroupMembers;
   const tableMembers = viewModel.confirmedTableMembers;
 
@@ -829,6 +952,16 @@ function removeGroupMembersSection() {
 
 function getMemberKey(member) {
   return normalize(getFirstValue(member, ["guest_id", "token", "guest_name", "name"], ""));
+}
+
+function formatGroupName(groupName) {
+  const cleanName = String(groupName || "").trim();
+
+  if (!cleanName) {
+    return "这个圈子";
+  }
+
+  return cleanName.replace(/[-_]+/g, " ");
 }
 
 function renderApprovedMessages(messages) {
@@ -1227,12 +1360,17 @@ function setupReveal() {
   revealItems.forEach((item) => observer.observe(item));
 }
 
-function sanitizeGuest(guest) {
+function sanitizeGuest(guest, options = {}) {
   const publicGuest = Object.assign({}, guest);
   delete publicGuest.whatsapp;
   delete publicGuest.table_locked;
   delete publicGuest.invitation_status;
   delete publicGuest.plus_one_allowed;
+
+  if (options.hideTable) {
+    delete publicGuest.table_id;
+  }
+
   return publicGuest;
 }
 
