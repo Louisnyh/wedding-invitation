@@ -147,20 +147,26 @@
       <section class="scene table-scene" aria-labelledby="table-title">
         <div class="scene-inner table-layout">
           <div class="scene-heading scene-reveal">
-            <p class="kicker" id="table-kicker">圈子预览</p>
-            <h2 id="table-title">先看看这个圈子</h2>
+            <p class="kicker" id="table-kicker">座位安排</p>
+            <h2 id="table-title">桌位会在婚礼前开放查询。</h2>
           </div>
           <div class="table-story scene-reveal">
             <div>
-              <span id="table-story-label">开放查询</span>
+              <span id="table-story-label">Check Your Table</span>
               <p id="table-story">
-                桌位会在婚礼前开放查询。现在先让你看看这个圈子里有哪些熟悉的人也会来到。
+                我们会在接近婚礼时开放 Check Your Table。
+
+                现在先让你看看，
+                那天会有哪些熟悉的人也会来到。
               </p>
             </div>
-            <div>
-              <span id="table-theme-label">这个圈子</span>
-              <p id="table-theme">这个圈子</p>
+            <div hidden>
+              <span id="table-theme-label">给你的安排</span>
+              <p id="table-theme"></p>
             </div>
+            <button class="table-check-button" id="table-check-button" type="button" disabled>
+              婚礼前开放 Check Your Table
+            </button>
           </div>
         </div>
       </section>
@@ -168,9 +174,12 @@
       <section class="scene members-scene" id="members-section" aria-labelledby="members-title">
         <div class="scene-inner">
           <div class="scene-heading scene-reveal">
-            <p class="kicker" id="members-kicker">熟悉的人</p>
-            <h2 id="members-title">这个圈子也会来</h2>
-            <p id="members-copy">桌位还没开放，但这些熟悉的人也会来到那一晚。</p>
+            <p class="kicker" id="members-kicker">熟悉面孔</p>
+            <h2 id="members-title">那晚，你会见到一些熟悉的人。</h2>
+            <p id="members-copy">
+              有些人可能不会坐在同一桌，
+              但都会在那一晚出现。
+            </p>
           </div>
           <ul class="member-list scene-reveal" id="member-list"></ul>
         </div>
