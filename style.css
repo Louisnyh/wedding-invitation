@@ -527,6 +527,7 @@ p {
 
 .table-story p {
   margin-top: 8px;
+  white-space: pre-line;
 }
 
 .table-check-button {
@@ -563,10 +564,20 @@ p {
   border-top: 1px solid var(--line);
 }
 
+.members-scene .scene-heading p {
+  white-space: pre-line;
+}
+
 .member-list strong {
   color: var(--ink);
   font-size: 1.08rem;
   font-weight: 760;
+}
+
+.member-empty {
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.76;
 }
 
 .member-list span {
