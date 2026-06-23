@@ -23,7 +23,7 @@ const SHEET_NAMES = {
 const INVITE_URL_BASE = "https://louisnyh.github.io/wedding-invitation/?token=";
 const DEFAULT_TABLE_RELEASE_DATE = "2026-11-28";
 const DEFAULT_TABLE_LOCKED_COPY =
-  "桌位会在婚礼前开放查询。现在先让你看看这个圈子里有哪些熟悉的人也会来到。";
+  "桌位会在婚礼前开放查询。现在先让你看看，那天会有哪些熟悉的人也会来到。";
 const DEFAULT_TABLE_RELEASED_COPY = "你的桌位已经开放查询。";
 
 /**
@@ -76,7 +76,7 @@ function doGet(e) {
     const confirmedGroupMembers = getConfirmedGroupMembers(
       guests,
       guest,
-      !tableVisibility.isReleased
+      true
     );
 
     const approvedMessages = getApprovedGroupMessages(messages, guest);
@@ -100,7 +100,7 @@ function doGet(e) {
       const confirmedTableMembers = guests
         .filter((row) => normalize(row.table_id) === normalize(guest.table_id))
         .filter((row) => normalize(row.rsvp_status) === "confirmed")
-        .map(removePrivateGuestFields);
+        .map((row) => removePrivateGuestFields(row, { hideTable: true }));
 
       response.table = table || {};
       response.confirmedTableMembers = confirmedTableMembers;
