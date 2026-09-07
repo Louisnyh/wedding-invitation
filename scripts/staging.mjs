@@ -1,0 +1,60 @@
+import http from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { resolve,extname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { build,root,shippedFiles } from './build.mjs';
+import { createHarness } from '../tests/harness.mjs';
+import { TOKEN_A } from '../tests/fixtures.mjs';
+export async function startStaging({port=4173}={}) {
+  const dist=await build({staging:true});
+  const harness=createHarness();let scenario='locked';
+  const scenarios=['locked','available','pending','force_closed','temporary_error','invalid','write_error','lost_ack','hostile_text'];
+  function setScenario(value) {
+    if(!scenarios.includes(value))throw new Error('Unknown scenario');
+    scenario=value;harness.control.failRead=false;harness.control.failWrite=false;harness.control.loseWriteResponse=false;
+    harness.control.now='2026-11-27T15:59:59Z';harness.setSetting('table_check_mode','scheduled');
+    harness.setCell('Guests',1,'invitation_status','active');harness.setCell('Guests',1,'table_id','SECRET_TABLE_A');harness.setCell('Guests',1,'guest_name','测试宾客 A');
+    if(value==='available'||value==='pending')harness.control.now='2026-11-27T16:00:00Z';
+    if(value==='pending')harness.setCell('Guests',1,'table_id','');
+    if(value==='force_closed')harness.setSetting('table_check_mode','force_closed');
+    if(value==='temporary_error')harness.control.failRead=true;
+    if(value==='invalid')harness.setCell('Guests',1,'invitation_status','revoked');
+    if(value==='write_error')harness.control.failWrite=true;
+    if(value==='lost_ack')harness.control.loseWriteResponse=true;
+    if(value==='hostile_text')harness.setCell('Guests',1,'guest_name','<img src=x onerror=alert(1)>');
+  }
+  const server=http.createServer(async(req,res)=>{
+    res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Content-Type-Options','nosniff');
+    // Local tests cannot connect to any remote guest API, even if a regression reintroduces one.
+    res.setHeader('Content-Security-Policy',"default-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+    const host=req.headers.host;
+    if(!host||!/^127\.0\.0\.1:\d+$/.test(host)){res.writeHead(403);res.end();return;}
+    if(req.headers.origin&&req.headers.origin!==`http://${host}`){res.writeHead(403);res.end();return;}
+    const url=new URL(req.url,`http://${host}`);
+    const send=(status,body,type='application/json')=>{res.writeHead(status,{'Content-Type':type});res.end(typeof body==='string'?body:JSON.stringify(body));};
+    try {
+      if(req.method==='POST'&&(url.pathname==='/api'||url.pathname==='/_staging/scenario')){
+        let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>8192){send(413,{});return;}}
+        if(url.pathname==='/_staging/scenario'){
+          setScenario(new URLSearchParams(raw).get('scenario'));res.writeHead(303,{Location:'/_staging'});res.end();return;
+        }
+        let input;try{input=JSON.parse(raw);}catch{send(400,{});return;}
+        send(200,harness.post(input));return;
+      }
+      if(req.method!=='GET'&&req.method!=='HEAD'){send(405,{});return;}
+      if(url.pathname==='/_staging/stats'){send(200,{scenario,reads:harness.stats.requests.filter(action=>action==='invitation').length,writes:harness.stats.writes.length});return;}
+      if(url.pathname==='/_staging'){
+        send(200,`<!doctype html><html lang="en"><meta charset="utf-8"><title>Synthetic staging controls</title><h1>Synthetic staging only</h1><p>No Google connection. Writes exist only in memory until this process stops.</p><form method="post" action="/_staging/scenario"><label>Scenario <select name="scenario">${scenarios.map(value=>`<option ${value===scenario?'selected':''}>${value}</option>`).join('')}</select></label><button>Apply scenario</button></form><p><a href="/?token=${TOKEN_A}">Open synthetic invitation</a></p><p><a href="/_staging/stats">View synthetic request counts</a></p></html>`,'text/html; charset=utf-8');return;
+      }
+      const file=url.pathname==='/'?'index.html':decodeURIComponent(url.pathname.slice(1));
+      if(!shippedFiles.includes(file)){send(404,{});return;}
+      const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.webp':'image/webp','.png':'image/png'}[extname(file)];
+      const body=await readFile(resolve(dist,file));res.writeHead(200,{'Content-Type':mime});res.end(req.method==='HEAD'?undefined:body);
+    }catch{send(500,{schemaVersion:2,state:'temporary_error'});}
+  });
+  await new Promise(resolve=>server.listen(port,'127.0.0.1',resolve));
+  return {server,harness,setScenario,url:`http://127.0.0.1:${server.address().port}`};
+}
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
+  const result=await startStaging();console.log(`Synthetic staging: ${result.url}/_staging`);
+}
