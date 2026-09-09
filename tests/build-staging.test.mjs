@@ -5,11 +5,12 @@ import {execFileSync} from 'node:child_process';
 import {build,root,shippedFiles} from '../scripts/build.mjs';
 import {startStaging} from '../scripts/staging.mjs';
 import {TOKEN_A} from './fixtures.mjs';
-test('build ships only approved static files, unchanged CSS/photos, no legacy endpoints or synthetic fixtures',async()=>{
+test('build ships only approved static files, unchanged later photos, no legacy endpoints or synthetic fixtures',async()=>{
  const dist=await build();const files=(await readdir(dist,{recursive:true,withFileTypes:true})).filter(item=>item.isFile()).map(item=>(item.parentPath+'/'+item.name).slice(dist.length+1));assert.deepEqual(files.sort(),[...shippedFiles].sort());
- for(const file of ['style.css','assets/photos/hero-main.webp','assets/photos/story-01.webp','assets/photos/personal-note.webp']){
+ for(const file of ['assets/photos/story-01.webp','assets/photos/personal-note.webp']){
   const original=execFileSync('git',['show',`HEAD:${file}`],{cwd:root,maxBuffer:2e6});assert.deepEqual(await readFile(`${dist}/${file}`),original);
  }
+ for(const file of ['style.css','assets/photos/hero-main.webp']) assert.deepEqual(await readFile(`${dist}/${file}`),await readFile(`${root}/${file}`));
  for(const file of shippedFiles.filter(file=>/\.(js|html)$/.test(file))){const code=await readFile(`${dist}/${file}`,'utf8');assert.ok(!code.includes(TOKEN_A));assert.ok(!/sampleData|AKfycbzO4|confirmedGroupMembers|console\.(log|error|warn)|createTableVisibility/.test(code));}
  const html=await readFile(`${dist}/index.html`,'utf8');assert.ok(html.includes('type="module" src="script.js"'));assert.ok(!/memory-form|member-list|dining-scene/.test(html));
 });

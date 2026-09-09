@@ -16,7 +16,6 @@ let authEpoch = 0;
 let loading = false;
 
 function renderEvent(event) {
-  if (event.dateLabel) $('.hero-date').textContent = event.dateLabel;
   const rows = [
     ['日期',event.dateLabel,'请把这一天留给我们。'],
     ['时间',event.timeLabel,'建议预留一些时间抵达、入座和慢慢见面。'],
@@ -147,7 +146,8 @@ function setupReveal() {
   items.forEach(item=>observer.observe(item));
 }
 function setupCountdown() {
-  const target = new Date($('#wedding-countdown').dataset.target).getTime();
+  const countdown = $('#wedding-countdown');
+  const target = new Date(countdown.dataset.target).getTime();
   let timer;
   const update = () => {
     const remaining = Math.max(0,Math.floor((target-Date.now())/1000));
