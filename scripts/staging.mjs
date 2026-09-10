@@ -1,11 +1,44 @@
 import http from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { resolve,extname } from 'node:path';
+import { resolve,relative,sep,extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build,root,shippedFiles } from './build.mjs';
 import { createHarness } from '../tests/harness.mjs';
 import { TOKEN_A } from '../tests/fixtures.mjs';
-export async function startStaging({port=4173}={}) {
+// Frontend v2 preview has no guest API, synthetic controls, or writable routes.
+async function startOpeningPreview(port) {
+  const dist = await build({frontend:'v2'});
+  const server = http.createServer(async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; connect-src 'none'; img-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+    const host = req.headers.host;
+    if (!host || !/^127\.0\.0\.1:\d+$/.test(host) || (req.headers.origin && req.headers.origin !== `http://${host}`)) {
+      res.writeHead(403); res.end(); return;
+    }
+    if (!['GET','HEAD'].includes(req.method)) {res.writeHead(405); res.end(); return;}
+    try {
+      const url = new URL(req.url, `http://${host}`);
+      if (url.pathname === '/' || url.pathname === '/frontend-v2') {
+        res.writeHead(302, {Location:'/frontend-v2/'}); res.end(); return;
+      }
+      const file = url.pathname === '/frontend-v2/' ? 'frontend-v2/index.html' : decodeURIComponent(url.pathname.slice(1));
+      const target = resolve(dist, file);
+      const targetFromDist = relative(dist, target);
+      if (targetFromDist === '..' || targetFromDist.startsWith(`..${sep}`)) {res.writeHead(404); res.end(); return;}
+      const mime = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'application/javascript; charset=utf-8','.webp':'image/webp','.jpg':'image/jpeg'}[extname(file)];
+      const body = await readFile(target);
+      res.writeHead(200, {'Content-Type':mime}); res.end(req.method === 'HEAD' ? undefined : body);
+    } catch {res.writeHead(404); res.end();}
+  });
+  await new Promise((resolve,reject) => {server.once('error',reject); server.listen(port,'127.0.0.1',resolve);});
+  return {server, url:`http://127.0.0.1:${server.address().port}`};
+}
+export async function startStaging({port,frontend='legacy'}={}) {
+  if (!['legacy','v2'].includes(frontend)) throw new Error('Unknown frontend');
+  if (frontend === 'v2') return startOpeningPreview(port ?? 4174);
+  port ??= 4173;
   const dist=await build({staging:true});
   const harness=createHarness();let scenario='locked';
   const scenarios=['locked','available','pending','force_closed','temporary_error','invalid','write_error','lost_ack','hostile_text'];
@@ -56,5 +89,6 @@ export async function startStaging({port=4173}={}) {
   return {server,harness,setScenario,url:`http://127.0.0.1:${server.address().port}`};
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  const result=await startStaging();console.log(`Synthetic staging: ${result.url}/_staging`);
+  const frontend=process.argv.includes('--v2')?'v2':'legacy';
+  const result=await startStaging({frontend});console.log(`${frontend==='v2'?'Frontend v2 preview':'Synthetic staging'}: ${result.url}/${frontend==='v2'?'frontend-v2/':'_staging'}`);
 }

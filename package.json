@@ -5,6 +5,8 @@
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "build": "node scripts/build.mjs",
-    "staging": "node scripts/staging.mjs"
+    "staging": "node scripts/staging.mjs",
+    "build:v2": "node scripts/build.mjs --v2",
+    "preview:v2": "node scripts/staging.mjs --v2"
   }
 }
