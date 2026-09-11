@@ -43,6 +43,7 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.ok(html.includes('styles/page-02.css'));
  assert.ok(html.includes('styles/page-03-04.css'));
  assert.ok(html.includes('styles/page-05.css'));
+ assert.ok(html.includes('styles/page-06.css'));
  assert.ok(html.includes('styles/motion.css'));
  assert.ok(html.includes('../assets/photos/forever-starts-here-8433a-54.jpg'));
  assert.ok(html.includes('../assets/photos/louis-portrait-8433a-53.jpg'));
@@ -50,6 +51,7 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.ok(html.indexOf('story__content') < html.indexOf('story__figure'));
  assert.ok(html.indexOf('class="forever"') < html.indexOf('class="portraits"'));
  assert.ok(html.indexOf('class="portraits"') < html.indexOf('class="ceremony"'));
+ assert.ok(html.indexOf('class="ceremony"') < html.indexOf('class="evening"'));
  assert.match(html,/class="ceremony"[\s\S]*05 · 12 · 2026[\s\S]*6:00 PM[\s\S]*7:00 PM[\s\S]*億家主题宴会厅 · [\s\S]*Hall E[\s\S]*露天草坪[\s\S]*Smart Casual/);
  assert.match(html,/href="https:\/\/maps\.app\.goo\.gl\/tDacdw6Jo4zL5B4U6"[\s\S]*target="_blank"[\s\S]*rel="noopener noreferrer"/);
  assert.ok(!/<section[^>]+class="ceremony"[\s\S]*\bMenu\b[\s\S]*<\/section>/.test(html));
@@ -61,6 +63,18 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.match(ceremonyCss,/\.ceremony__date-display[\s\S]*white-space: nowrap/);
  assert.match(ceremonyCss,/\.ceremony__item--dress dd[\s\S]*font-family: var\(--font-display\)/);
  assert.ok(!/border-radius|box-shadow/.test(ceremonyCss));
+ const eveningHtml=html.slice(html.indexOf('<section class="evening"'),html.indexOf('</section>',html.indexOf('<section class="evening"')));
+ assert.match(eveningHtml,/\b06\b[\s\S]*The Evening[\s\S]*6:00–7:00 PM[\s\S]*The Ceremony[\s\S]*7:00–8:00 PM[\s\S]*Dinner Begins[\s\S]*8:00–9:00 PM[\s\S]*Celebrate With Us[\s\S]*9:00–10:00 PM[\s\S]*Stay A Little Longer/);
+ assert.equal([...eveningHtml.matchAll(/<svg\b/g)].length,4);
+ assert.equal([...eveningHtml.matchAll(/class="evening__event"/g)].length,4);
+ assert.equal([...eveningHtml.matchAll(/data-reveal="text"/g)].length,6);
+ assert.equal([...eveningHtml.matchAll(/data-reveal="timeline-line"/g)].length,1);
+ const eveningCss=await readFile(`${dist}/frontend-v2/styles/page-06.css`,'utf8');
+ assert.match(eveningCss,/min-height: 100svh/);
+ assert.match(eveningCss,/\.evening__line[\s\S]*background: var\(--color-lavender\)/);
+ assert.match(eveningCss,/data-reveal="timeline-line"/);
+ assert.match(eveningCss,/@media \(prefers-reduced-motion: reduce\)/);
+ assert.ok(!/border-radius|box-shadow|scroll-snap/.test(eveningCss));
  const chapterCss=await readFile(`${dist}/frontend-v2/styles/page-03-04.css`,'utf8');
  assert.match(chapterCss,/@media \(max-width: 767px\) and \(prefers-reduced-motion: no-preference\)[\s\S]*height: 208svh/);
  assert.match(chapterCss,/position: sticky;[\s\S]*height: 100svh;[\s\S]*overflow: clip/);
@@ -101,6 +115,7 @@ test('frontend v2 serves only public invitation assets with no API or writable r
   assert.equal(new URL('styles/page-02.css',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/styles/page-02.css');
   assert.equal(new URL('styles/page-03-04.css',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/styles/page-03-04.css');
   assert.equal(new URL('styles/page-05.css',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/styles/page-05.css');
+  assert.equal(new URL('styles/page-06.css',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/styles/page-06.css');
   assert.equal(new URL('../assets/photos/love-story-8433a-20.jpg',githubPagesBase).pathname,'/wedding-invitation/assets/photos/love-story-8433a-20.jpg');
   assert.equal(new URL('../assets/photos/forever-starts-here-8433a-54.jpg',githubPagesBase).pathname,'/wedding-invitation/assets/photos/forever-starts-here-8433a-54.jpg');
   for(const file of openingFiles) assert.equal((await fetch(result.url+'/'+file)).status,200,file);
