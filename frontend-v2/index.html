@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="referrer" content="no-referrer" />
     <title>Louis Ng &amp; Joyce Phoon · 05 December 2026</title>
+    <link rel="icon" href="../assets/photos/hero-main.webp" type="image/webp" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400&amp;family=Noto+Sans+SC:wght@400&amp;display=swap" rel="stylesheet" />
@@ -13,6 +14,7 @@
     <link rel="stylesheet" href="styles/page-01.css" />
     <link rel="stylesheet" href="styles/page-02.css" />
     <link rel="stylesheet" href="styles/page-03-04.css" />
+    <link rel="stylesheet" href="styles/page-05.css" />
     <link rel="stylesheet" href="styles/motion.css" />
   </head>
   <body>
@@ -72,6 +74,40 @@
           </div>
         </div>
       </div>
+      <section class="ceremony" id="ceremony" aria-labelledby="ceremony-title">
+        <h2 class="ceremony__title" id="ceremony-title">Ceremony information</h2>
+        <p class="ceremony__chapter" data-reveal="text" data-reveal-delay="0" aria-hidden="true">05</p>
+        <div class="ceremony__layout">
+          <header class="ceremony__date" data-reveal="text" data-reveal-delay="1">
+            <p class="ceremony__label">Date</p>
+            <time class="ceremony__date-display" datetime="2026-12-05">05 · 12 · 2026</time>
+            <p class="ceremony__weekday">Saturday</p>
+          </header>
+          <div class="ceremony__information">
+            <dl class="ceremony__details">
+              <div class="ceremony__item" data-reveal="text" data-reveal-delay="1">
+                <dt>Reception</dt>
+                <dd><time datetime="2026-12-05T18:00:00+08:00">6:00 PM</time></dd>
+              </div>
+              <div class="ceremony__item" data-reveal="text" data-reveal-delay="2">
+                <dt>Dinner</dt>
+                <dd><time datetime="2026-12-05T19:00:00+08:00">7:00 PM</time></dd>
+              </div>
+              <div class="ceremony__item ceremony__item--venue" data-reveal="text" data-reveal-delay="2">
+                <dt>Venue</dt>
+                <dd lang="zh">億家主题宴会厅 · <span class="ceremony__venue-nowrap">Hall E</span> 露天草坪</dd>
+              </div>
+              <div class="ceremony__item ceremony__item--dress" data-reveal="text" data-reveal-delay="3">
+                <dt>Dress Code</dt>
+                <dd>Smart Casual</dd>
+              </div>
+            </dl>
+            <a class="ceremony__map" data-reveal="text" data-reveal-delay="3" href="https://maps.app.goo.gl/tDacdw6Jo4zL5B4U6" target="_blank" rel="noopener noreferrer" aria-label="Open 億家主题宴会厅 · Hall E 露天草坪 in Google Maps (opens in a new tab)">
+              <span>Google Maps</span><span aria-hidden="true">→</span>
+            </a>
+          </div>
+        </div>
+      </section>
     </main>
     <script type="module" src="scripts/countdown.js"></script>
     <script type="module" src="scripts/editorial-sequence.js"></script>
