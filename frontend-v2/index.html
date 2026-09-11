@@ -12,6 +12,8 @@
     <link rel="stylesheet" href="styles/base.css" />
     <link rel="stylesheet" href="styles/page-01.css" />
     <link rel="stylesheet" href="styles/page-02.css" />
+    <link rel="stylesheet" href="styles/page-03-04.css" />
+    <link rel="stylesheet" href="styles/motion.css" />
   </head>
   <body>
     <main>
@@ -28,23 +30,51 @@
       </section>
       <section class="story" aria-labelledby="story-title">
         <div class="story__content">
-          <div class="story__chapter" aria-hidden="true"><span>02</span></div>
-          <h2 class="story__title" id="story-title">Our Love Story</h2>
-          <div class="story__copy" lang="zh-Hans">
+          <div class="story__chapter" data-reveal="text" data-reveal-delay="0" aria-hidden="true"><span>02</span></div>
+          <h2 class="story__title" id="story-title" data-reveal="text" data-reveal-delay="1">Our Love Story</h2>
+          <div class="story__copy" lang="zh-Hans" data-reveal="text" data-reveal-delay="2">
             <p>我们都不是特别喜欢热闹的人。</p>
             <p>但结婚这件事，刚好给了我们一个理由，<br />把平时各自忙碌的大家聚在一起。</p>
             <p>希望这一天，你可以轻松地来，开心地吃，<br />也陪我们一起见证这段故事走到新的开始。</p>
           </div>
-          <div class="story__closing" lang="zh-Hans">
+          <div class="story__closing" lang="zh-Hans" data-reveal="text" data-reveal-delay="3">
             <p class="story__date"><time datetime="2026-12-05">05 · 12 · 2026</time></p>
             <p class="story__waiting">等你。</p>
           </div>
         </div>
-        <figure class="story__figure">
+        <figure class="story__figure" data-reveal="story-photo">
           <img class="story__photo" src="../assets/photos/love-story-8433a-20.jpg" width="1600" height="2400" loading="lazy" alt="Louis and Joyce smiling together in their wedding portrait." />
         </figure>
       </section>
+      <div class="editorial-sequence" aria-label="Pages 03 and 04: Forever Starts Here, followed by portraits of Louis and Joyce.">
+        <div class="editorial-sequence__viewport">
+          <div class="editorial-sequence__track">
+            <section class="forever" aria-labelledby="forever-title">
+              <img class="forever__photo" src="../assets/photos/forever-starts-here-8433a-54.jpg" width="1600" height="2400" loading="lazy" alt="Louis and Joyce posed together in formal wedding attire." />
+              <div class="forever__heading">
+                <p class="forever__chapter" data-reveal="text" data-reveal-delay="0" aria-hidden="true">03</p>
+                <h2 class="forever__title" id="forever-title" data-reveal="text" data-reveal-delay="1">Forever Starts Here</h2>
+              </div>
+            </section>
+            <section class="portraits" aria-labelledby="portrait-louis portrait-joyce">
+              <p class="portraits__chapter" aria-hidden="true">04</p>
+              <div class="portraits__spread">
+                <figure class="portraits__figure portraits__figure--louis">
+                  <img class="portraits__photo" data-reveal="portrait-left" data-reveal-delay="0" src="../assets/photos/louis-portrait-8433a-53.jpg" width="1600" height="2400" loading="lazy" alt="Louis seated in a formal wedding portrait." />
+                  <figcaption class="portraits__name" id="portrait-louis" data-reveal="name" data-reveal-delay="2">Louis</figcaption>
+                </figure>
+                <figure class="portraits__figure portraits__figure--joyce">
+                  <img class="portraits__photo" data-reveal="portrait-right" data-reveal-delay="1" src="../assets/photos/joyce-portrait-8433a-57.jpg" width="1600" height="2400" loading="lazy" alt="Joyce seated in her wedding dress for a formal portrait." />
+                  <figcaption class="portraits__name" id="portrait-joyce" data-reveal="name" data-reveal-delay="2">Joyce</figcaption>
+                </figure>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
     </main>
     <script type="module" src="scripts/countdown.js"></script>
+    <script type="module" src="scripts/editorial-sequence.js"></script>
+    <script type="module" src="scripts/reveal.js"></script>
   </body>
 </html>

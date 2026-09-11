@@ -1,0 +1,78 @@
+[data-reveal] {
+  --reveal-delay: 0ms;
+  --reveal-duration: 760ms;
+  --reveal-easing: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-reveal-delay="1"] { --reveal-delay: 70ms; }
+[data-reveal-delay="2"] { --reveal-delay: 130ms; }
+[data-reveal-delay="3"] { --reveal-delay: 190ms; }
+
+.reveal-ready [data-reveal="text"],
+.reveal-ready [data-reveal="story-photo"] {
+  transition:
+    opacity var(--reveal-duration) var(--reveal-easing) var(--reveal-delay),
+    transform var(--reveal-duration) var(--reveal-easing) var(--reveal-delay);
+}
+
+.reveal-ready [data-reveal="text"]:not(.is-revealed) {
+  opacity: 0;
+  transform: translateY(18px);
+  will-change: opacity, transform;
+}
+
+.reveal-ready [data-reveal="story-photo"] {
+  --reveal-duration: 920ms;
+}
+
+.reveal-ready [data-reveal="story-photo"]:not(.is-revealed) {
+  opacity: 0;
+  transform: translateX(28px);
+  will-change: opacity, transform;
+}
+
+@media (max-width: 767px) {
+  .reveal-ready [data-reveal="story-photo"]:not(.is-revealed) {
+    transform: translateY(28px) scale(1.015);
+  }
+}
+
+@media (min-width: 768px) {
+  .reveal-ready [data-reveal="portrait-left"],
+  .reveal-ready [data-reveal="portrait-right"] {
+    --reveal-duration: 900ms;
+
+    transition:
+      opacity var(--reveal-duration) var(--reveal-easing) var(--reveal-delay),
+      transform var(--reveal-duration) var(--reveal-easing) var(--reveal-delay);
+  }
+
+  .reveal-ready [data-reveal="portrait-left"]:not(.is-revealed) {
+    opacity: 0;
+    transform: translateX(-18px);
+    will-change: opacity, transform;
+  }
+
+  .reveal-ready [data-reveal="portrait-right"]:not(.is-revealed) {
+    opacity: 0;
+    transform: translateX(18px);
+    will-change: opacity, transform;
+  }
+
+  .reveal-ready [data-reveal="name"] {
+    transition: opacity 700ms var(--reveal-easing) var(--reveal-delay);
+  }
+
+  .reveal-ready [data-reveal="name"]:not(.is-revealed) {
+    opacity: 0;
+    will-change: opacity;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
