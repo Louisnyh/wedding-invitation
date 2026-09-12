@@ -5,21 +5,47 @@ import { fileURLToPath } from 'node:url';
 import { build,root,shippedFiles } from './build.mjs';
 import { createHarness } from '../tests/harness.mjs';
 import { TOKEN_A } from '../tests/fixtures.mjs';
-// Frontend v2 preview has no guest API, synthetic controls, or writable routes.
+// Frontend v2 preview uses an isolated in-memory RSVP API and never calls production.
 async function startOpeningPreview(port) {
-  const dist = await build({frontend:'v2'});
+  const dist = await build({frontend:'v2',staging:true,previewToken:TOKEN_A});
+  let harness = createHarness();
+  let scenario = 'ready';
+  function setScenario(value) {
+    if (!['ready','reset','legacy_attending','temporary_error','invalid','write_error','lost_ack'].includes(value)) throw new Error('Unknown scenario');
+    if (value === 'reset') { harness = createHarness(); scenario = 'ready'; return; }
+    scenario = value;
+    harness.control.failRead = false; harness.control.failWrite = false; harness.control.loseWriteResponse = false;
+    harness.setCell('Guests',1,'invitation_status','active');
+    if (value === 'legacy_attending') harness.data.RSVP.push(['legacy-preview','c'.repeat(32),1,'2026-10-01T00:00:00Z','synthetic-a','confirmed',2,'','','']);
+    if (value === 'temporary_error') harness.control.failRead = true;
+    if (value === 'invalid') harness.setCell('Guests',1,'invitation_status','revoked');
+    if (value === 'write_error') harness.control.failWrite = true;
+    if (value === 'lost_ack') harness.control.loseWriteResponse = true;
+  }
   const server = http.createServer(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; connect-src 'none'; img-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+    res.setHeader('Content-Security-Policy', "default-src 'self'; connect-src 'self'; img-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self'; base-uri 'none'; frame-ancestors 'none'");
     const host = req.headers.host;
     if (!host || !/^127\.0\.0\.1:\d+$/.test(host) || (req.headers.origin && req.headers.origin !== `http://${host}`)) {
       res.writeHead(403); res.end(); return;
     }
-    if (!['GET','HEAD'].includes(req.method)) {res.writeHead(405); res.end(); return;}
     try {
       const url = new URL(req.url, `http://${host}`);
+      if (req.method === 'POST' && ['/api','/_preview/scenario'].includes(url.pathname)) {
+        let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>8192){res.writeHead(413);res.end();return;}}
+        let input;try{input=JSON.parse(raw);}catch{res.writeHead(400);res.end();return;}
+        if (url.pathname === '/_preview/scenario') {
+          setScenario(input.scenario);res.writeHead(204);res.end();return;
+        }
+        const body=JSON.stringify(harness.post(input));res.writeHead(200,{'Content-Type':'application/json'});res.end(body);return;
+      }
+      if (req.method === 'GET' && url.pathname === '/_preview/stats') {
+        const body=JSON.stringify({scenario,writes:harness.stats.writes.length,requests:harness.stats.requests.length});
+        res.writeHead(200,{'Content-Type':'application/json'});res.end(body);return;
+      }
+      if (!['GET','HEAD'].includes(req.method)) {res.writeHead(405);res.end();return;}
       if (url.pathname === '/' || url.pathname === '/frontend-v2') {
         res.writeHead(302, {Location:'/frontend-v2/'}); res.end(); return;
       }
@@ -33,7 +59,7 @@ async function startOpeningPreview(port) {
     } catch {res.writeHead(404); res.end();}
   });
   await new Promise((resolve,reject) => {server.once('error',reject); server.listen(port,'127.0.0.1',resolve);});
-  return {server, url:`http://127.0.0.1:${server.address().port}`};
+  return {server, get harness(){return harness;}, setScenario, url:`http://127.0.0.1:${server.address().port}`};
 }
 export async function startStaging({port,frontend='legacy'}={}) {
   if (!['legacy','v2'].includes(frontend)) throw new Error('Unknown frontend');

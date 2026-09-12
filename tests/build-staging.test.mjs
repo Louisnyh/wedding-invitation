@@ -34,7 +34,8 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  const dist=await build({frontend:'v2'});
  const files=(await readdir(dist,{recursive:true,withFileTypes:true})).filter(item=>item.isFile()).map(item=>(item.parentPath+'/'+item.name).slice(dist.length+1));
  assert.deepEqual(files.sort(),[...openingFiles].sort());
- for(const file of openingFiles) assert.deepEqual(await readFile(`${dist}/${file}`),await readFile(`${root}/${file}`));
+ for(const file of openingFiles.filter(file=>file!=='js/config.js')) assert.deepEqual(await readFile(`${dist}/${file}`),await readFile(`${root}/${file}`));
+ const defaultConfig=await readFile(`${dist}/js/config.js`,'utf8');assert.match(defaultConfig,/API_URL = ""/);assert.match(defaultConfig,/PREVIEW_TOKEN = ""/);
  for(const [file,bytes] of oldFiles) assert.deepEqual(await readFile(`${root}/dist/${file}`),bytes);
  const html=await readFile(`${dist}/frontend-v2/index.html`,'utf8');
  assert.ok(html.includes('../assets/photos/hero-main.webp'));
@@ -45,6 +46,7 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.ok(html.includes('styles/page-05.css'));
  assert.ok(html.includes('styles/page-06.css'));
  assert.ok(html.includes('styles/page-07.css'));
+ assert.ok(html.includes('styles/page-08.css'));
  assert.ok(html.includes('styles/motion.css'));
  assert.ok(html.includes('../assets/photos/forever-starts-here-8433a-54.jpg'));
  assert.ok(html.includes('../assets/photos/louis-portrait-8433a-53.jpg'));
@@ -55,6 +57,7 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.ok(html.indexOf('class="portraits"') < html.indexOf('class="ceremony"'));
  assert.ok(html.indexOf('class="ceremony"') < html.indexOf('class="evening"'));
  assert.ok(html.indexOf('class="evening"') < html.indexOf('class="closing"'));
+ assert.ok(html.indexOf('class="closing"') < html.indexOf('class="rsvp"'));
  assert.match(html,/class="ceremony"[\s\S]*05 · 12 · 2026[\s\S]*6:00 PM[\s\S]*7:00 PM[\s\S]*億家主题宴会厅 · [\s\S]*Hall E[\s\S]*露天草坪[\s\S]*Smart Casual/);
  assert.match(html,/href="https:\/\/maps\.app\.goo\.gl\/tDacdw6Jo4zL5B4U6"[\s\S]*target="_blank"[\s\S]*rel="noopener noreferrer"/);
  assert.ok(!/<section[^>]+class="ceremony"[\s\S]*\bMenu\b[\s\S]*<\/section>/.test(html));
@@ -93,7 +96,11 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.match(closingCss,/@media \(max-width: 767px\)[\s\S]*\.closing__media::before[\s\S]*background-image: url\("\.\.\/\.\.\/assets\/photos\/emotional-closing-8433a-113\.jpg"\)/);
  assert.match(closingCss,/@media \(max-width: 767px\)[\s\S]*\.closing__photo[\s\S]*height: 64%[\s\S]*object-fit: contain[\s\S]*mask-image:/);
  assert.ok(!/border-radius|box-shadow|scroll-snap|position: sticky/.test(closingCss));
- assert.ok(!/page-08|class="page-08"|data-page="08"/.test(html));
+ const rsvpHtml=html.slice(html.indexOf('<section class="rsvp"'),html.indexOf('</section>',html.indexOf('<section class="rsvp"')));
+ assert.match(rsvpHtml,/\b08\b[\s\S]*Will You Join Us\?[\s\S]*如果你愿意把这一天留给我们[\s\S]*我会来[\s\S]*See you there\.[\s\S]*还不确定[\s\S]*不好意思！我无法出席/);
+ assert.match(rsvpHtml,/type="radio" name="rsvpStatus"[\s\S]*id="rsvp-party-size"[\s\S]*name="childPresence"[\s\S]*id="rsvp-child-count"[\s\S]*type="checkbox" name="dietarySelections"[\s\S]*id="rsvp-unable-note"/);
+ const rsvpCss=await readFile(`${dist}/frontend-v2/styles/page-08.css`,'utf8');assert.match(rsvpCss,/background: var\(--color-ivory\)/);assert.ok(!/position: sticky|scroll-snap/.test(rsvpCss));
+ const adapter=await readFile(`${dist}/frontend-v2/scripts/rsvp-adapter.js`,'utf8');assert.match(adapter,/createRsvpState[\s\S]*startSaving[\s\S]*finishSaving/);assert.match(adapter,/under5ChildCount/);
  const chapterCss=await readFile(`${dist}/frontend-v2/styles/page-03-04.css`,'utf8');
  assert.match(chapterCss,/@media \(max-width: 767px\) and \(prefers-reduced-motion: no-preference\)[\s\S]*height: 208svh/);
  assert.match(chapterCss,/position: sticky;[\s\S]*height: 100svh;[\s\S]*overflow: clip/);
@@ -118,15 +125,16 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.ok(!html.slice(0,html.indexOf('<section class="story"')).includes('data-reveal'));
  assert.ok(html.includes('scripts/reveal.js'));
  assert.ok(!/animation-timeline/.test(chapterCss));
- assert.ok(!/rsvp|table-check|js\/api|src="script.js"|href="style.css"/.test(html));
- await assert.rejects(build({frontend:'v2',apiUrl:'https://script.google.com/macros/s/example/exec'}));
+ assert.ok(!/table-check|src="script.js"|href="style.css"/.test(html));
+ const remoteDist=await build({frontend:'v2',apiUrl:'https://script.google.com/macros/s/example/exec'});
+ const remoteConfig=await readFile(`${remoteDist}/js/config.js`,'utf8');assert.match(remoteConfig,/https:\/\/script\.google\.com\/macros\/s\/example\/exec/);assert.match(remoteConfig,/PREVIEW_TOKEN = ""/);
  await assert.rejects(build({frontend:'unknown'}));
 });
-test('frontend v2 serves only public invitation assets with no API or writable routes',async()=>{
+test('frontend v2 preview serves public assets and only its synthetic RSVP API',async()=>{
  const result=await startStaging({frontend:'v2',port:0});
  try {
   const response=await fetch(result.url+'/');assert.equal(response.status,200);assert.equal(new URL(response.url).pathname,'/frontend-v2/');
-  assert.match(response.headers.get('content-security-policy'),/connect-src 'none'/);
+  assert.match(response.headers.get('content-security-policy'),/connect-src 'self'/);
   const html=await response.text();assert.ok(html.includes('Louis Ng'));
   const localAssets=[...html.matchAll(/(?:href|src)="([^"]+)"/g)].map(match=>match[1]).filter(value=>!value.startsWith('https://'));
   for(const asset of localAssets) assert.equal((await fetch(new URL(asset,response.url))).status,200,asset);
@@ -136,12 +144,18 @@ test('frontend v2 serves only public invitation assets with no API or writable r
   assert.equal(new URL('styles/page-05.css',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/styles/page-05.css');
   assert.equal(new URL('styles/page-06.css',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/styles/page-06.css');
   assert.equal(new URL('styles/page-07.css',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/styles/page-07.css');
+  assert.equal(new URL('styles/page-08.css',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/styles/page-08.css');
+  assert.equal(new URL('../../js/api.js',new URL('scripts/rsvp-adapter.js',githubPagesBase)).pathname,'/wedding-invitation/js/api.js');
   assert.equal(new URL('../assets/photos/emotional-closing-8433a-113.jpg',githubPagesBase).pathname,'/wedding-invitation/assets/photos/emotional-closing-8433a-113.jpg');
   assert.equal(new URL('../assets/photos/love-story-8433a-20.jpg',githubPagesBase).pathname,'/wedding-invitation/assets/photos/love-story-8433a-20.jpg');
   assert.equal(new URL('../assets/photos/forever-starts-here-8433a-54.jpg',githubPagesBase).pathname,'/wedding-invitation/assets/photos/forever-starts-here-8433a-54.jpg');
   for(const file of openingFiles) assert.equal((await fetch(result.url+'/'+file)).status,200,file);
-  for(const file of ['apps-script.gs','tests/fixtures.mjs','tests/harness.mjs','.git/config','.env','index.html','script.js','js/config.js','assets/photos/hero-main.jpg','api','_staging','_staging/stats']) assert.equal((await fetch(result.url+'/'+file)).status,404,file);
-  assert.equal((await fetch(result.url+'/api',{method:'POST',body:'{}'})).status,405);
+  for(const file of ['apps-script.gs','tests/fixtures.mjs','tests/harness.mjs','.git/config','.env','index.html','script.js','assets/photos/hero-main.jpg','_staging','_staging/stats']) assert.equal((await fetch(result.url+'/'+file)).status,404,file);
+  const previewConfig=await fetch(result.url+'/js/config.js').then(value=>value.text());assert.ok(previewConfig.includes(TOKEN_A));assert.match(previewConfig,/API_URL = "\/api"/);
+  const ready=await fetch(result.url+'/api',{method:'POST',body:JSON.stringify({action:'invitation',token:TOKEN_A})}).then(value=>value.json());assert.equal(ready.state,'ready');assert.equal(ready.guest.displayName,'测试宾客 A');
+  const saved=await fetch(result.url+'/api',{method:'POST',body:JSON.stringify({action:'rsvp',token:TOKEN_A,requestId:'f'.repeat(32),status:'attending',partySize:2,under5ChildCount:1,dietaryRequirements:'素食',privateNote:''})}).then(value=>value.json());assert.equal(saved.state,'saved');assert.equal(saved.rsvp.under5ChildCount,1);
+  assert.equal((await fetch(result.url+'/api')).status,404);
+  assert.equal((await fetch(result.url+'/_preview/stats')).status,200);
   assert.equal((await fetch(result.url+'/frontend-v2/',{headers:{Origin:'https://example.invalid'}})).status,403);
  } finally {await new Promise(resolve=>result.server.close(resolve));}
 });

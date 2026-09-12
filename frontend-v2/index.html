@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="styles/page-05.css" />
     <link rel="stylesheet" href="styles/page-06.css" />
     <link rel="stylesheet" href="styles/page-07.css" />
+    <link rel="stylesheet" href="styles/page-08.css" />
     <link rel="stylesheet" href="styles/motion.css" />
   </head>
   <body>
@@ -180,9 +181,115 @@
           <h2 class="closing__title" id="closing-title" data-reveal="text" data-reveal-delay="3">The Moment We Say “I Do.”</h2>
         </div>
       </section>
+      <section class="rsvp" id="rsvp" aria-labelledby="rsvp-title">
+        <div class="rsvp__introduction">
+          <p class="rsvp__chapter" data-reveal="text" data-reveal-delay="0" aria-hidden="true">08</p>
+          <h2 class="rsvp__title" id="rsvp-title" data-reveal="text" data-reveal-delay="1">Will You Join Us?</h2>
+          <div class="rsvp__opening" lang="zh-Hans" data-reveal="text" data-reveal-delay="2">
+            <p>如果你愿意把这一天留给我们，<br />我们会很开心见到你。</p>
+            <p>告诉我们，你会不会来吧。</p>
+          </div>
+          <div class="rsvp__identity" data-reveal="text" data-reveal-delay="3">
+            <span>回复人</span>
+            <strong id="rsvp-guest-name">正在读取邀请…</strong>
+          </div>
+        </div>
+
+        <div class="rsvp__interaction">
+          <div class="rsvp__loading" id="rsvp-loading" role="status" aria-live="polite">正在读取你的邀请…</div>
+          <button class="rsvp__text-button" id="rsvp-load-retry" type="button" hidden>重新读取邀请</button>
+
+          <form class="rsvp__form" id="rsvp-form" novalidate hidden aria-busy="false">
+            <fieldset class="rsvp__choices" id="rsvp-status-group" data-reveal="text" data-reveal-delay="3" aria-describedby="rsvp-status-error">
+              <legend class="rsvp__legend">请选择你的回复</legend>
+              <label class="rsvp__choice">
+                <input type="radio" name="rsvpStatus" value="attending" />
+                <span><strong>我会来</strong><small>See you there.</small></span>
+              </label>
+              <label class="rsvp__choice">
+                <input type="radio" name="rsvpStatus" value="unsure" />
+                <span><strong>还不确定</strong><small>I'll let you know.</small></span>
+              </label>
+              <label class="rsvp__choice">
+                <input type="radio" name="rsvpStatus" value="unable" />
+                <span><strong>不好意思！我无法出席</strong><small>Sending my wishes.</small></span>
+              </label>
+              <p class="rsvp__error" id="rsvp-status-error"></p>
+            </fieldset>
+
+            <div class="rsvp__selected" id="rsvp-selected" hidden>
+              <p class="rsvp__state-message" id="rsvp-state-message" lang="zh-Hans"></p>
+
+              <div class="rsvp__attending" id="rsvp-attending" hidden>
+                <div class="rsvp__field">
+                  <label for="rsvp-party-size">出席人数</label>
+                  <select id="rsvp-party-size" name="partySize" aria-describedby="rsvp-party-hint rsvp-party-error"></select>
+                  <p class="rsvp__hint" id="rsvp-party-hint"></p>
+                  <p class="rsvp__error" id="rsvp-party-error"></p>
+                </div>
+
+                <fieldset class="rsvp__field rsvp__inline-options" id="rsvp-child-presence-group" aria-describedby="rsvp-child-presence-error">
+                  <legend>是否有 5 岁以下孩童随同？</legend>
+                  <label><input type="radio" name="childPresence" value="yes" /><span>有</span></label>
+                  <label><input type="radio" name="childPresence" value="no" /><span>没有</span></label>
+                  <p class="rsvp__error" id="rsvp-child-presence-error"></p>
+                </fieldset>
+
+                <div class="rsvp__field" id="rsvp-child-count-field" hidden>
+                  <label for="rsvp-child-count">5 岁以下孩童人数</label>
+                  <select id="rsvp-child-count" name="under5ChildCount" aria-describedby="rsvp-child-count-error"></select>
+                  <p class="rsvp__error" id="rsvp-child-count-error"></p>
+                </div>
+
+                <fieldset class="rsvp__field rsvp__dietary" id="rsvp-dietary-group" aria-describedby="rsvp-dietary-error">
+                  <legend>是否有饮食需求？</legend>
+                  <div class="rsvp__dietary-options">
+                    <label><input type="checkbox" name="dietarySelections" value="vegetarian" /><span>素食</span></label>
+                    <label><input type="checkbox" name="dietarySelections" value="allergy" aria-controls="rsvp-allergy-detail-field" aria-expanded="false" /><span>食物敏感或过敏</span></label>
+                    <label><input type="checkbox" name="dietarySelections" value="other" aria-controls="rsvp-other-detail-field" aria-expanded="false" /><span>其他</span></label>
+                    <label><input type="checkbox" name="dietarySelections" value="none" /><span>没有</span></label>
+                  </div>
+                  <p class="rsvp__error" id="rsvp-dietary-error"></p>
+                </fieldset>
+
+                <div class="rsvp__field" id="rsvp-allergy-detail-field" hidden>
+                  <label for="rsvp-allergy-detail">请告诉我们需要注意的事项</label>
+                  <input id="rsvp-allergy-detail" name="allergyDetail" type="text" maxlength="460" autocomplete="off" aria-describedby="rsvp-allergy-detail-error" />
+                  <p class="rsvp__error" id="rsvp-allergy-detail-error"></p>
+                </div>
+
+                <div class="rsvp__field" id="rsvp-other-detail-field" hidden>
+                  <label for="rsvp-other-detail">请告诉我们其他饮食需求</label>
+                  <input id="rsvp-other-detail" name="otherDietaryDetail" type="text" maxlength="460" autocomplete="off" aria-describedby="rsvp-other-detail-error" />
+                  <p class="rsvp__error" id="rsvp-other-detail-error"></p>
+                </div>
+              </div>
+
+              <div class="rsvp__field rsvp__wishes" id="rsvp-unable-note-field" hidden>
+                <label for="rsvp-unable-note">想对我们说些什么吗？（选填）</label>
+                <textarea id="rsvp-unable-note" name="privateNote" maxlength="500" rows="4" aria-describedby="rsvp-unable-note-error"></textarea>
+                <p class="rsvp__error" id="rsvp-unable-note-error"></p>
+              </div>
+
+              <button class="rsvp__submit" id="rsvp-submit" type="submit">确认回复</button>
+            </div>
+          </form>
+
+          <section class="rsvp__success" id="rsvp-success" aria-labelledby="rsvp-success-title" hidden tabindex="-1">
+            <h3 id="rsvp-success-title">谢谢你的回复。</h3>
+            <p class="rsvp__success-date" id="rsvp-success-date" hidden>05 · 12 · 2026</p>
+            <p class="rsvp__success-copy" id="rsvp-success-copy"></p>
+            <p class="rsvp__signature">Louis &amp; Joyce</p>
+            <button class="rsvp__text-button" id="rsvp-edit" type="button">修改回复</button>
+          </section>
+
+          <p class="rsvp__announcement" id="rsvp-announcement" role="status" aria-live="polite" tabindex="-1"></p>
+        </div>
+      </section>
     </main>
     <script type="module" src="scripts/countdown.js"></script>
     <script type="module" src="scripts/editorial-sequence.js"></script>
     <script type="module" src="scripts/reveal.js"></script>
+    <script type="module" src="scripts/rsvp-adapter.js"></script>
   </body>
 </html>
