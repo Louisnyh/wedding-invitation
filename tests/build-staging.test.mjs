@@ -24,7 +24,7 @@ test('localhost staging serves actual v2 backend, blocks private files and only 
   const r=await send({action:'invitation',token:TOKEN_A});assert.equal(r.state,'ready');
   result.setScenario('available');assert.equal((await send({action:'invitation',token:TOKEN_A})).tableCheck.state,'available');
   for(const path of ['apps-script.gs','tests/fixtures.mjs','.git/config','README.md','assets/photos/story-01.JPG'])assert.equal((await fetch(result.url+'/'+path)).status,404);
-  const post=await send({action:'rsvp',token:TOKEN_A,requestId:'e'.repeat(32),status:'unable',partySize:null,dietaryRequirements:'',privateNote:'synthetic only'});assert.equal(post.state,'saved');assert.equal(result.harness.stats.writes.length,1);
+  const post=await send({action:'rsvp',token:TOKEN_A,requestId:'e'.repeat(32),status:'unable',partySize:null,under5ChildCount:null,dietaryRequirements:'',privateNote:'synthetic only'});assert.equal(post.state,'saved');assert.equal(result.harness.stats.writes.length,1);
   assert.equal((await fetch(result.url+'/api',{method:'POST',headers:{Origin:'https://evil.invalid'},body:'{}'})).status,403);
  }finally{await new Promise(resolve=>result.server.close(resolve));}
 });

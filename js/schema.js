@@ -19,11 +19,13 @@ export function safeMapUrl(value, kind) {
   } catch { return ''; }
 }
 export function validateRsvp(value) {
-  keys(value, ['status','partySize','partyLimit','dietaryRequirements','privateNote']);
+  keys(value, ['status','partySize','partyLimit','under5ChildCount','dietaryRequirements','privateNote']);
   if (![null,'attending','unsure','unable'].includes(value.status)) fail();
   if (!Number.isInteger(value.partyLimit) || value.partyLimit < 1 || value.partyLimit > 20) fail();
   if (value.partySize !== null && (!Number.isInteger(value.partySize) || value.partySize < 1 || value.partySize > 20)) fail();
-  if (value.status !== 'attending' && (value.partySize !== null || value.dietaryRequirements !== '')) fail();
+  if (value.under5ChildCount !== null && (!Number.isInteger(value.under5ChildCount) || value.under5ChildCount < 0 || value.under5ChildCount > 20)) fail();
+  if (value.status === 'attending' && value.under5ChildCount !== null && (value.partySize === null || value.under5ChildCount > value.partySize)) fail();
+  if (value.status !== 'attending' && (value.partySize !== null || value.under5ChildCount !== null || value.dietaryRequirements !== '')) fail();
   text(value.dietaryRequirements,500); text(value.privateNote,500);
   return value;
 }
@@ -47,7 +49,7 @@ export function validateResponse(value) {
     keys(value,['schemaVersion','state','errors']);
     if (!value.errors || typeof value.errors !== 'object' || Array.isArray(value.errors)) fail();
     for (const [key,message] of Object.entries(value.errors)) {
-      if (!['form','status','partySize','dietaryRequirements','privateNote'].includes(key)) fail();
+      if (!['form','status','partySize','under5ChildCount','dietaryRequirements','privateNote'].includes(key)) fail();
       text(message,200);
     }
   } else if (value.state === 'saved') {

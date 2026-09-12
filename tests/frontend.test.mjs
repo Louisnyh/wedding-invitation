@@ -6,13 +6,13 @@ import {createRsvpState,changeRsvp,editRsvp,startSaving,finishSaving} from '../j
 import {tablePresentation} from '../js/table-check.js';
 import {createHarness} from './harness.mjs';
 import {TOKEN_A} from './fixtures.mjs';
-const saved={status:null,partySize:null,partyLimit:3,dietaryRequirements:'',privateNote:''};
+const saved={status:null,partySize:null,partyLimit:3,under5ChildCount:null,dietaryRequirements:'',privateNote:''};
 for(const status of ['attending','unsure','unable'])test(`selecting ${status} only selects; explicit save required`,()=>{
- const state=changeRsvp(createRsvpState(saved),'status',status);assert.equal(state.phase,'selected');assert.equal(state.requestId,null);assert.equal(state.submitted,null);
+ let state=changeRsvp(createRsvpState(saved),'status',status);if(status==='attending')state=changeRsvp(state,'under5ChildCount','0');assert.equal(state.requestId,null);assert.equal(state.submitted,null);
  const next=startSaving(state,()=> 'a'.repeat(32));assert.equal(next.state.phase,'saving');assert.equal(next.payload.status,status);
 });
 test('editing and recoverable errors preserve the exact draft and retry identity',()=>{
- let state=changeRsvp(createRsvpState(saved),'status','attending');state=changeRsvp(state,'partySize','2');state=changeRsvp(state,'privateNote','  =literal\n');
+ let state=changeRsvp(createRsvpState(saved),'status','attending');state=changeRsvp(state,'partySize','2');state=changeRsvp(state,'under5ChildCount','0');state=changeRsvp(state,'privateNote','  =literal\n');
  const next=startSaving(state,()=> 'a'.repeat(32));state=finishSaving(next.state,{state:'temporary_error'});
  assert.equal(state.phase,'recoverable_error');assert.deepEqual(state.draft,next.state.draft);assert.equal(startSaving(state,()=> 'b'.repeat(32)).payload.requestId,'a'.repeat(32));
  state=changeRsvp(state,'privateNote','edited');assert.equal(startSaving(state,()=> 'b'.repeat(32)).payload.requestId,'b'.repeat(32));
@@ -22,15 +22,28 @@ test('saving cannot be double-submitted or edited',()=>{
  assert.equal(startSaving(state).payload,null);assert.equal(changeRsvp(state,'status','attending'),state);assert.equal(editRsvp(state),state);
 });
 test('saved form data prefills on edit including private fields owned by this guest',()=>{
- const value={...saved,status:'attending',partySize:2,dietaryRequirements:'no nuts',privateNote:'hello'};
- const state=editRsvp(createRsvpState(value));assert.equal(state.phase,'editing');assert.deepEqual(state.draft,{status:'attending',partySize:'2',dietaryRequirements:'no nuts',privateNote:'hello'});
+ const value={...saved,status:'attending',partySize:2,under5ChildCount:1,dietaryRequirements:'no nuts',privateNote:'hello'};
+ const state=editRsvp(createRsvpState(value));assert.equal(state.phase,'editing');assert.deepEqual(state.draft,{status:'attending',partySize:'2',under5ChildCount:'1',dietaryRequirements:'no nuts',privateNote:'hello'});
 });
 test('switching away from attending omits attendance fields from the request',()=>{
- const state=changeRsvp(createRsvpState({...saved,status:'attending',partySize:2,dietaryRequirements:'nuts'}),'status','unsure');
- const {payload}=startSaving(state,()=> 'a'.repeat(32));assert.equal(payload.partySize,null);assert.equal(payload.dietaryRequirements,'');assert.equal(state.draft.dietaryRequirements,'nuts');
+ const state=changeRsvp(createRsvpState({...saved,status:'attending',partySize:2,under5ChildCount:1,dietaryRequirements:'nuts'}),'status','unsure');
+ const {payload}=startSaving(state,()=> 'a'.repeat(32));assert.equal(payload.partySize,null);assert.equal(payload.under5ChildCount,null);assert.equal(payload.dietaryRequirements,'');assert.equal(state.draft.under5ChildCount,'1');assert.equal(state.draft.dietaryRequirements,'nuts');
 });
 for(const partySize of ['','0','-1','1.5','1e0','2people',' 2','02','4'])test(`client rejects invalid integer ${partySize}`,()=>{
- const state=changeRsvp(changeRsvp(createRsvpState(saved),'status','attending'),'partySize',partySize);assert.equal(startSaving(state).payload,null);
+ let state=changeRsvp(changeRsvp(createRsvpState(saved),'status','attending'),'partySize',partySize);state=changeRsvp(state,'under5ChildCount','0');assert.equal(startSaving(state).payload,null);
+});
+for(const childCount of ['0','1','2'])test(`client accepts under-5 child count ${childCount}`,()=>{
+ let state=changeRsvp(createRsvpState(saved),'status','attending');state=changeRsvp(state,'partySize','3');state=changeRsvp(state,'under5ChildCount',childCount);
+ assert.equal(startSaving(state,()=> 'a'.repeat(32)).payload.under5ChildCount,Number(childCount));
+});
+for(const childCount of ['', '-1','1.5','one','4'])test(`client rejects under-5 child count ${childCount}`,()=>{
+ let state=changeRsvp(createRsvpState(saved),'status','attending');state=changeRsvp(state,'partySize','3');state=changeRsvp(state,'under5ChildCount',childCount);
+ assert.equal(startSaving(state).payload,null);
+});
+test('legacy attending response keeps child count unknown and requires an explicit value on edit',()=>{
+ const legacy={...saved,status:'attending',partySize:2,under5ChildCount:null};let state=editRsvp(createRsvpState(legacy));
+ assert.equal(state.draft.under5ChildCount,'');assert.equal(startSaving(state).payload,null);
+ state=changeRsvp(state,'under5ChildCount','0');assert.equal(startSaving(state,()=> 'a'.repeat(32)).payload.under5ChildCount,0);
 });
 test('API transports only via POST body, no credentials/referrer/cache, and validates schema',async()=>{
  const h=createHarness();let captured;

@@ -4,7 +4,7 @@ import { createHarness } from './harness.mjs';
 import { TOKEN_A,TOKEN_B } from './fixtures.mjs';
 import { validateResponse } from '../js/schema.js';
 const read = h => h.post({action:'invitation',token:TOKEN_A});
-const write = (overrides={}) => ({action:'rsvp',token:TOKEN_A,requestId:'1234567890abcdef1234567890abcdef',status:'attending',partySize:2,dietaryRequirements:'',privateNote:'',...overrides});
+const write = (overrides={}) => ({action:'rsvp',token:TOKEN_A,requestId:'1234567890abcdef1234567890abcdef',status:'attending',partySize:2,under5ChildCount:0,dietaryRequirements:'',privateNote:'',...overrides});
 function noLeaks(response) {
   const wire=JSON.stringify(response);
   for(const forbidden of [TOKEN_A,TOKEN_B,'synthetic-a','synthetic-b','ORGANIZER_SECRET','OTHER_GUEST','PERSONAL_SECRET','PRIVATE_INVITE','SETTINGS_SECRET','FORBIDDEN_MESSAGE','FORBIDDEN_MENU','SECRET_TABLE']) assert.ok(!wire.includes(forbidden),forbidden);
@@ -65,13 +65,14 @@ test('all RSVP options use authorized explicit writes; current own form prefills
   const h=createHarness();for(const [i,status] of ['attending','unsure','unable'].entries()) {
     const r=h.post(write({status,partySize:status==='attending'?3:null,requestId:String(i+1).repeat(32),privateNote:'  A private note\n'}));
     assert.equal(r.state,'saved');assert.equal(r.rsvp.status,status);assert.equal(r.rsvp.privateNote,'  A private note\n');noLeaks(r);
+    assert.equal(r.rsvp.under5ChildCount,status==='attending'?0:null);
     assert.deepEqual(read(h).rsvp,r.rsvp);
   }
   assert.equal(h.stats.writes.length,3);assert.equal(h.data.Guests[1][5],'pending');
 });
 for(const value of ['=1+1','+1','-1','@SUM(A1:A2)',"'literal",'\t=1','line one\n=1','你好 💜']) test(`literal Sheet text round-trip ${JSON.stringify(value)}`,()=>{
   const h=createHarness();const r=h.post(write({dietaryRequirements:value,privateNote:value}));assert.equal(r.state,'saved');
-  assert.equal(h.stats.writes[0].row[7],"'"+value);assert.equal(read(h).rsvp.privateNote,value);assert.equal(read(h).rsvp.dietaryRequirements,value);
+  assert.equal(h.stats.writes[0].row[8],"'"+value);assert.equal(read(h).rsvp.privateNote,value);assert.equal(read(h).rsvp.dietaryRequirements,value);
 });
 test('long/control-character text rejected before write',()=>{
   const h=createHarness();assert.equal(h.post(write({privateNote:'x'.repeat(501)})).state,'validation_error');
@@ -85,6 +86,33 @@ test('lost acknowledgement is retryable with exactly one append',()=>{
   const h=createHarness();h.control.loseWriteResponse=true;assert.equal(h.post(write()).state,'temporary_error');
   assert.equal(h.post(write()).state,'saved');assert.equal(h.stats.writes.length,1);
 });
+for(const count of [0,1,2]) test(`attending stores ${count} under-5 children`,()=>{
+  const h=createHarness();const r=h.post(write({partySize:3,under5ChildCount:count}));
+  assert.equal(r.state,'saved');assert.equal(r.rsvp.under5ChildCount,count);assert.equal(h.stats.writes[0].row[7],count);
+});
+for(const count of [-1,1.5,'1','one',4]) test(`reject invalid under-5 child count ${JSON.stringify(count)}`,()=>{
+  const h=createHarness();const r=h.post(write({partySize:3,under5ChildCount:count}));
+  assert.equal(r.state,'validation_error');assert.ok(r.errors.under5ChildCount);assert.equal(h.stats.writes.length,0);
+});
+for(const status of ['unsure','unable']) test(`${status} normalizes under-5 child count to null`,()=>{
+  const h=createHarness();const r=h.post(write({status,partySize:null,under5ChildCount:2}));
+  assert.equal(r.state,'saved');assert.equal(r.rsvp.under5ChildCount,null);assert.equal(h.stats.writes[0].row[7],'');
+});
+test('legacy blank under-5 child count remains unknown until explicitly saved',()=>{
+  const h=createHarness();h.data.RSVP.push(['legacy','a'.repeat(32),1,'2026-10-01T00:00:00Z','synthetic-a','confirmed',2,'','legacy diet','legacy note']);
+  const legacy=read(h).rsvp;assert.equal(legacy.under5ChildCount,null);
+  const saved=h.post(write({requestId:'b'.repeat(32),partySize:2,under5ChildCount:1,dietaryRequirements:'legacy diet',privateNote:'legacy note'}));
+  assert.equal(saved.state,'saved');assert.equal(saved.rsvp.under5ChildCount,1);assert.equal(h.stats.writes[0].row[7],1);
+});
+test('unchanged retry is idempotent with under-5 child count',()=>{
+  const h=createHarness();h.control.loseWriteResponse=true;const request=write({under5ChildCount:2});
+  assert.equal(h.post(request).state,'temporary_error');assert.equal(h.post(request).rsvp.under5ChildCount,2);assert.equal(h.stats.writes.length,1);
+});
+test('changing under-5 child count is detected as an edited response',()=>{
+  const h=createHarness();assert.equal(h.post(write({under5ChildCount:0})).state,'saved');
+  const duplicate=h.post(write({under5ChildCount:1}));assert.equal(duplicate.state,'validation_error');assert.ok(duplicate.errors.form);assert.equal(h.stats.writes.length,1);
+  const updated=h.post(write({requestId:'f'.repeat(32),under5ChildCount:1}));assert.equal(updated.state,'saved');assert.equal(updated.rsvp.under5ChildCount,1);assert.equal(h.stats.writes.length,2);
+});
 test('edited duplicate request ID rejected; own revisions survive physical row sorting',()=>{
   const h=createHarness();h.post(write());assert.equal(h.post(write({privateNote:'changed'})).state,'validation_error');
   h.post(write({requestId:'f'.repeat(32),privateNote:'latest'}));h.data.RSVP=[h.data.RSVP[0],...h.data.RSVP.slice(1).reverse()];
@@ -94,8 +122,8 @@ test('other guest RSVP never leaks into current response',()=>{
   const h=createHarness();h.post(write({token:TOKEN_B,privateNote:'OTHER_GUEST_PRIVATE'}));const r=read(h);assert.equal(r.rsvp.status,null);noLeaks(r);
 });
 test('legacy history uses timestamp rather than row order; organizer notes never prefilled',()=>{
-  const h=createHarness();h.data.RSVP.push(['old2','','','2026-10-02T00:00:00Z','synthetic-a','maybe','','','']);
-  h.data.RSVP.push(['old1','','','2026-10-01T00:00:00Z','synthetic-a','confirmed',2,'legacy diet','']);assert.equal(read(h).rsvp.status,'unsure');
+  const h=createHarness();h.data.RSVP.push(['old2','','','2026-10-02T00:00:00Z','synthetic-a','maybe','','','','']);
+  h.data.RSVP.push(['old1','','','2026-10-01T00:00:00Z','synthetic-a','confirmed',2,'','legacy diet','']);assert.equal(read(h).rsvp.status,'unsure');
 });
 test('write failure and lock timeout never claim saved',()=>{
   const h=createHarness();h.control.failWrite=true;assert.equal(h.post(write()).state,'temporary_error');assert.equal(h.stats.locked,false);

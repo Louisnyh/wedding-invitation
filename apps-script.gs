@@ -4,7 +4,7 @@
 const API_VERSION = 2;
 const WEDDING_TIMEZONE = "Asia/Kuala_Lumpur";
 const MAX_PARTY_SIZE = 20;
-const RSVP_HEADERS = ["response_id", "request_id", "revision", "timestamp", "guest_id", "rsvp_status", "pax_count", "dietary_notes", "private_note"];
+const RSVP_HEADERS = ["response_id", "request_id", "revision", "timestamp", "guest_id", "rsvp_status", "pax_count", "under_5_child_count", "dietary_notes", "private_note"];
 const MAP_HOSTS = ["maps.app.goo.gl", "maps.google.com", "www.google.com", "google.com", "www.google.com.my"];
 const WAZE_HOSTS = ["ul.waze.com", "www.waze.com", "waze.com"];
 
@@ -169,6 +169,15 @@ function strictInteger(value, min, max) {
   const number = Number(value);
   return Number.isSafeInteger(number) && number >= min && number <= max ? number : null;
 }
+function strictUnder5ChildCount(value, max) {
+  return typeof value === "number" && Number.isSafeInteger(value) && Number.isInteger(max) && value >= 0 && value <= max ? value : null;
+}
+function storedUnder5ChildCount(value, partySize) {
+  if (value === "" || value === undefined || value === null) return null;
+  const count = Number.isInteger(partySize) ? strictUnder5ChildCount(value, partySize) : null;
+  if (count === null) throw new Error("Invalid saved under-5 child count");
+  return count;
+}
 function partyLimit(guest) {
   if (guest.pax_limit === "" || guest.pax_limit === undefined || guest.pax_limit === null) return 1;
   const limit = strictInteger(guest.pax_limit, 1, MAX_PARTY_SIZE);
@@ -198,10 +207,12 @@ function latestOwnRecord(guest, rows) {
 function ownRsvpResponse(guest, rows) {
   const latest = latestOwnRecord(guest, rows);
   const status = responseStatus(latest.rsvp_status);
+  const responsePartySize = status === "attending" ? strictInteger(latest.pax_count, 1, MAX_PARTY_SIZE) : null;
   return {
     status: status,
-    partySize: status === "attending" ? strictInteger(latest.pax_count, 1, MAX_PARTY_SIZE) : null,
+    partySize: responsePartySize,
     partyLimit: partyLimit(guest),
+    under5ChildCount: status === "attending" ? storedUnder5ChildCount(latest.under_5_child_count, responsePartySize) : null,
     dietaryRequirements: status === "attending" ? privateFormText(latest.dietary_notes) : "",
     // Organizer special_notes/personal_message are intentionally never read here.
     privateNote: latest === guest ? "" : privateFormText(latest.private_note)
@@ -217,16 +228,18 @@ function validateGuestText(value) {
 }
 function validateRsvp(request, guest) {
   const errors = {};
-  const allowed = ["action", "token", "requestId", "status", "partySize", "dietaryRequirements", "privateNote"];
+  const allowed = ["action", "token", "requestId", "status", "partySize", "under5ChildCount", "dietaryRequirements", "privateNote"];
   if (Object.keys(request).some(function (key) { return !allowed.includes(key); })) errors.form = "Unexpected fields";
   if (typeof request.requestId !== "string" || !/^[a-f0-9]{32}$/.test(request.requestId)) errors.form = "Invalid request identifier";
   if (!["attending", "unsure", "unable"].includes(request.status)) errors.status = "Choose a response";
   const count = request.status === "attending" ? strictInteger(request.partySize, 1, partyLimit(guest)) : null;
   if (request.status === "attending" && count === null) errors.partySize = "Enter a whole number within your invitation allowance";
+  const childCount = request.status === "attending" ? strictUnder5ChildCount(request.under5ChildCount, count) : null;
+  if (request.status === "attending" && childCount === null) errors.under5ChildCount = "Enter an under-5 child count from zero to the attending party size";
   if (!validateGuestText(request.dietaryRequirements)) errors.dietaryRequirements = "Use up to 500 characters";
   if (!validateGuestText(request.privateNote)) errors.privateNote = "Use up to 500 characters";
   if (request.status !== "attending" && (request.partySize !== null || request.dietaryRequirements !== "")) errors.form = "Attendance fields must be empty";
-  return { errors: errors, value: { status: request.status, partySize: count, dietaryRequirements: request.dietaryRequirements, privateNote: request.privateNote } };
+  return { errors: errors, value: { status: request.status, partySize: count, under5ChildCount: childCount, dietaryRequirements: request.dietaryRequirements, privateNote: request.privateNote } };
 }
 function literalSheetText(value) {
   // Apostrophe forces literal text in Sheets; getValues returns the original text.
@@ -245,8 +258,10 @@ function saveRsvp(spreadsheet, token, request) {
     const prior = store.rows.find(function (row) { return String(row.guest_id) === String(guest.guest_id) && row.request_id === request.requestId; });
     const value = checked.value;
     if (prior) {
-      if (responseStatus(prior.rsvp_status) !== value.status ||
-          (value.status === "attending" ? Number(prior.pax_count) : null) !== value.partySize ||
+      const priorStatus = responseStatus(prior.rsvp_status);
+      const priorPartySize = priorStatus === "attending" ? strictInteger(prior.pax_count, 1, MAX_PARTY_SIZE) : null;
+      const priorChildCount = priorStatus === "attending" ? storedUnder5ChildCount(prior.under_5_child_count, priorPartySize) : null;
+      if (priorStatus !== value.status || priorPartySize !== value.partySize || priorChildCount !== value.under5ChildCount ||
           String(prior.dietary_notes || "") !== value.dietaryRequirements || String(prior.private_note || "") !== value.privateNote) {
         return { schemaVersion: API_VERSION, state: "validation_error", errors: { form: "Use a new request identifier for an edited response" } };
       }
@@ -260,6 +275,7 @@ function saveRsvp(spreadsheet, token, request) {
       response_id: Utilities.getUuid(), request_id: request.requestId, timestamp: new Date(), guest_id: guest.guest_id,
       rsvp_status: { attending: "confirmed", unsure: "maybe", unable: "declined" }[value.status],
       pax_count: value.status === "attending" ? value.partySize : value.status === "unable" ? 0 : "",
+      under_5_child_count: value.under5ChildCount === null ? "" : value.under5ChildCount,
       dietary_notes: value.dietaryRequirements, private_note: value.privateNote
     };
     store.sheet.appendRow(store.headers.map(function (key) { return literalSheetText(Object.prototype.hasOwnProperty.call(record, key) ? record[key] : ""); }));
