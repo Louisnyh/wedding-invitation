@@ -1,284 +1,1034 @@
-/** Phase 2A API. Deploy separately from static files. See docs/DEPLOYMENT.md.
- * RSVP is an append-only canonical log; Guests is never updated by this API.
+/**
+ * Louis & Joyce Wedding Invitation API
+ *
+ * This Google Apps Script file reads guest data from Google Sheets and returns
+ * personalized invitation data as JSON.
+ *
+ * IMPORTANT:
+ * - Do not store real guest phone numbers or private guest data in GitHub.
+ * - This file does not change the approved website visual design.
  */
-const API_VERSION = 2;
-const WEDDING_TIMEZONE = "Asia/Kuala_Lumpur";
-const MAX_PARTY_SIZE = 20;
-const RSVP_HEADERS = ["response_id", "request_id", "revision", "timestamp", "guest_id", "rsvp_status", "pax_count", "under_5_child_count", "dietary_notes", "private_note"];
-const MAP_HOSTS = ["maps.app.goo.gl", "maps.google.com", "www.google.com", "google.com", "www.google.com.my"];
-const WAZE_HOSTS = ["ul.waze.com", "www.waze.com", "waze.com"];
 
-function jsonResponse(value) {
-  return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON);
+const SPREADSHEET_ID = "1bvo6l0_4_MNdVqgSIbgnnR1uwIrrDgPLmAiGGDke3og";
+
+const SHEET_NAMES = {
+  guests: "Guests",
+  tables: "Tables",
+  rsvp: "RSVP",
+  messages: "Messages",
+  settings: "Settings",
+  menu: "Menu",
+};
+
+const INVITE_URL_BASE = "https://louisnyh.github.io/wedding-invitation/?token=";
+const DEFAULT_TABLE_RELEASE_DATE = "2026-11-28";
+const DEFAULT_TABLE_LOCKED_COPY =
+  "桌位会在婚礼前开放查询。现在先让你看看，那天会有哪些熟悉的人也会来到。";
+const DEFAULT_TABLE_RELEASED_COPY = "你的桌位已经开放查询。";
+
+/**
+ * Returns JSON with the correct content type.
+ *
+ * This helper is placed near the top because doGet() uses it many times.
+ */
+function jsonResponse(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
 }
-// Credentials are accepted only in POST bodies, not API query strings.
-function doGet() { return jsonResponse(apiError("invalid_invitation")); }
+
+/**
+ * Main API endpoint.
+ *
+ * Example URL after deployment:
+ * https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec?token=jason-a7k29x
+ *
+ * @param {Object} e Apps Script event object containing query parameters.
+ * @return {ContentService.TextOutput} JSON response.
+ */
+function doGet(e) {
+  try {
+    const token = getTokenFromRequest(e);
+
+    if (!token) {
+      return jsonResponse({
+        success: false,
+        error: "Invalid invitation link",
+      });
+    }
+
+    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const guests = readSheetObjects(spreadsheet, SHEET_NAMES.guests);
+    const messages = readSheetObjects(spreadsheet, SHEET_NAMES.messages);
+    const settings = readSettings(spreadsheet, SHEET_NAMES.settings);
+    const menu = readMenu(spreadsheet, SHEET_NAMES.menu);
+    const tableVisibility = createTableVisibility(settings);
+
+    const guest = guests.find((row) => normalize(row.token) === token);
+
+    if (!guest) {
+      return jsonResponse({
+        success: false,
+        error: "Invalid invitation link",
+      });
+    }
+
+    const confirmedGroupMembers = getConfirmedGroupMembers(
+      guests,
+      guest,
+      true
+    );
+
+    const approvedMessages = getApprovedGroupMessages(messages, guest);
+    const response = {
+      success: true,
+      guest: removePrivateGuestFields(guest, {
+        hideTable: !tableVisibility.isReleased,
+      }),
+      confirmedGroupMembers,
+      messages: approvedMessages,
+      settings,
+      menu,
+      tableVisibility,
+    };
+
+    if (tableVisibility.isReleased) {
+      const tables = readSheetObjects(spreadsheet, SHEET_NAMES.tables);
+      const table = tables.find(
+        (row) => normalize(row.table_id) === normalize(guest.table_id)
+      );
+      const confirmedTableMembers = guests
+        .filter((row) => normalize(row.table_id) === normalize(guest.table_id))
+        .filter((row) => normalize(row.rsvp_status) === "confirmed")
+        .map((row) => removePrivateGuestFields(row, { hideTable: true }));
+
+      response.table = table || {};
+      response.confirmedTableMembers = confirmedTableMembers;
+    }
+
+    return jsonResponse(response);
+  } catch (error) {
+    return jsonResponse({
+      success: false,
+      error: "Server error",
+      message: error.message,
+    });
+  }
+}
+
+/**
+ * Save endpoint for website actions.
+ *
+ * The website sends action-based POST requests here:
+ * - action = rsvp   saves attendance replies
+ * - action = memory saves memories for review
+ *
+ * Older RSVP requests without an action are still treated as RSVP requests.
+ *
+ * @param {Object} e Apps Script event object containing submitted form data.
+ * @return {ContentService.TextOutput} JSON response.
+ */
 function doPost(e) {
   try {
-    const raw = e && e.postData && e.postData.contents;
-    if (typeof raw !== "string" || raw.length > 8192) return jsonResponse(apiError("invalid_invitation"));
-    const request = JSON.parse(raw);
-    if (!request || Array.isArray(request) || typeof request !== "object") return jsonResponse(apiError("invalid_invitation"));
-    if (!["invitation", "rsvp"].includes(request.action)) return jsonResponse(apiError("invalid_invitation"));
-    const token = cleanToken(request.token);
-    if (!token) return jsonResponse(apiError("invalid_invitation"));
-    const spreadsheet = openConfiguredSpreadsheet();
-    if (request.action === "rsvp") return jsonResponse(saveRsvp(spreadsheet, token, request));
-    const guest = authorizeGuest(spreadsheet, token, new Date());
-    if (!guest) return jsonResponse(apiError("invalid_invitation"));
-    return jsonResponse(invitationResponse(spreadsheet, guest, new Date()));
-  } catch (_) {
-    // Never disclose spreadsheet identifiers, exception text or request contents.
-    return jsonResponse(apiError("temporary_error"));
-  }
-}
-function apiError(state) { return { schemaVersion: API_VERSION, state: state }; }
-function openConfiguredSpreadsheet() {
-  const properties = PropertiesService.getScriptProperties();
-  const environment = properties.getProperty("ENVIRONMENT");
-  const id = properties.getProperty("SPREADSHEET_ID");
-  if (!["staging", "production"].includes(environment) || !id) throw new Error("Not configured");
-  if (environment === "production" && properties.getProperty("PRODUCTION_ENABLED") !== "yes") throw new Error("Not enabled");
-  return SpreadsheetApp.openById(id);
-}
-function cleanToken(value) {
-  return typeof value === "string" && /^[a-f0-9]{16,128}$/i.test(value) ? value.toLowerCase() : "";
-}
-function readRows(spreadsheet, name, required) {
-  const sheet = spreadsheet.getSheetByName(name);
-  if (!sheet) throw new Error("Missing required sheet");
-  const values = sheet.getDataRange().getValues();
-  const headers = (values[0] || []).map(function (value) { return String(value).trim(); });
-  if (new Set(headers.filter(Boolean)).size !== headers.filter(Boolean).length) throw new Error("Duplicate headers");
-  (required || []).forEach(function (key) { if (!headers.includes(key)) throw new Error("Missing required column"); });
-  return {
-    sheet: sheet, headers: headers,
-    rows: values.slice(1).filter(function (row) { return row.some(function (cell) { return cell !== ""; }); }).map(function (row) {
-      const record = Object.create(null);
-      headers.forEach(function (key, index) { if (key) record[key] = row[index]; });
-      return record;
-    })
-  };
-}
-function authorizeGuest(spreadsheet, token, now) {
-  const guests = readRows(spreadsheet, "Guests", ["guest_id", "token", "guest_name", "invitation_status", "pax_limit"]).rows;
-  const matches = guests.filter(function (guest) { return cleanToken(guest.token) === token; });
-  if (matches.length !== 1) return null;
-  const guest = matches[0];
-  const active = ["", "active", "invited", "sent", "delivered", "opened", "valid"];
-  if (!active.includes(String(guest.invitation_status || "").trim().toLowerCase())) return null;
-  if (["yes", "true", "1"].includes(String(guest.revoked || "").trim().toLowerCase())) return null;
-  if (!String(guest.guest_id || "").trim()) return null;
-  if (guests.filter(function (row) { return String(row.guest_id) === String(guest.guest_id); }).length !== 1) return null;
-  if (guest.expires_at) {
-    const expiry = expiryInstant(guest.expires_at);
-    if (expiry === null || now.getTime() >= expiry) return null;
-  }
-  return guest;
-}
-function expiryInstant(value) {
-  if (value instanceof Date) return isNaN(value.getTime()) ? null : value.getTime();
-  if (typeof value !== "string") return null;
-  const text = value.trim();
-  if (validDateKey(text)) return new Date(text + "T00:00:00+08:00").getTime();
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/.test(text) || !validDateKey(text.slice(0, 10))) return null;
-  const time = new Date(text).getTime();
-  return isNaN(time) ? null : time;
-}
-function publicText(value, max) {
-  if (typeof value !== "string") return "";
-  return value.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "").trim().slice(0, max);
-}
-function readSettings(spreadsheet) {
-  const settings = Object.create(null);
-  readRows(spreadsheet, "Settings", ["key", "value"]).rows.forEach(function (row) {
-    if (typeof row.key === "string") settings[row.key] = row.value;
-  });
-  return settings;
-}
-function validatedMapUrl(value, hosts) {
-  if (typeof value !== "string" || value.length > 2048 || /[\s<>"'\\\u0000-\u001f]/.test(value)) return "";
-  // Apps Script does not provide the browser URL constructor.
-  const match = /^https:\/\/([a-z0-9.-]+)(\/[^#]*)?(?:#[^\s]*)?$/i.exec(value);
-  if (!match || !hosts.includes(match[1].toLowerCase())) return "";
-  if (MAP_HOSTS.includes(match[1].toLowerCase()) && match[1].toLowerCase() !== "maps.app.goo.gl" &&
-      match[1].toLowerCase() !== "maps.google.com" && !/^\/maps(?:[/?]|$)/.test(match[2] || "")) return "";
-  return value;
-}
-function eventResponse(settings) {
-  // No settings spread: administrator metadata can never become API fields.
-  return {
-    dateLabel: publicText(settings.wedding_date_display, 100),
-    timeLabel: publicText(settings.wedding_start_time, 100),
-    venueName: publicText(settings.venue_name, 160),
-    venueAddress: publicText(settings.venue_address, 300),
-    dressCode: publicText(settings.dress_code, 160),
-    googleMapsUrl: validatedMapUrl(settings.google_maps_url, MAP_HOSTS),
-    wazeUrl: validatedMapUrl(settings.waze_url, WAZE_HOSTS)
-  };
-}
-function invitationResponse(spreadsheet, guest, now) {
-  const settings = readSettings(spreadsheet);
-  return {
-    schemaVersion: API_VERSION, state: "ready",
-    guest: { displayName: publicText(guest.guest_name, 120) || "Guest" },
-    event: eventResponse(settings),
-    rsvp: ownRsvpResponse(guest, readRows(spreadsheet, "RSVP", RSVP_HEADERS).rows),
-    tableCheck: tableResponse(spreadsheet, guest, settings, now)
-  };
-}
-function validDateKey(value) {
-  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = new Date(value + "T00:00:00Z");
-  return !isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-}
-function weddingDateKey(value) {
-  if (value instanceof Date) return isNaN(value.getTime()) ? null : Utilities.formatDate(value, WEDDING_TIMEZONE, "yyyy-MM-dd");
-  if (typeof value !== "string") return null;
-  const text = value.trim();
-  if (validDateKey(text)) return text;
-  const instant = expiryInstant(text);
-  return instant === null ? null : Utilities.formatDate(new Date(instant), WEDDING_TIMEZONE, "yyyy-MM-dd");
-}
-function releaseDecision(settings, now) {
-  const mode = String(settings.table_check_mode || "scheduled").trim().toLowerCase();
-  if (mode === "force_closed") return { state: "locked", reason: "force_closed", releaseDate: null };
-  if (mode === "force_open") return { state: "released" };
-  if (mode !== "scheduled") return { state: "temporary_error" };
-  const releaseDate = weddingDateKey(settings.table_release_date);
-  if (!releaseDate) return { state: "temporary_error" };
-  const today = Utilities.formatDate(now, WEDDING_TIMEZONE, "yyyy-MM-dd");
-  return today >= releaseDate ? { state: "released" } : { state: "locked", reason: "scheduled", releaseDate: releaseDate };
-}
-function tableResponse(spreadsheet, guest, settings, now) {
-  const decision = releaseDecision(settings, now);
-  if (decision.state !== "released") return decision;
-  const id = String(guest.table_id || "").trim();
-  if (!id) return { state: "assignment_pending" };
-  try {
-    const matches = readRows(spreadsheet, "Tables", ["table_id", "table_name"]).rows.filter(function (table) { return String(table.table_id).trim() === id; });
-    if (matches.length > 1) return { state: "temporary_error" };
-    const name = matches.length ? publicText(matches[0].table_name, 120) : "";
-    if (!name) return { state: "assignment_pending" };
-    return { state: "available", assignment: { name: name } };
-  } catch (_) { return { state: "temporary_error" }; }
-}
-function strictInteger(value, min, max) {
-  if (typeof value === "string" && !/^[1-9]\d*$/.test(value)) return null;
-  if (typeof value !== "string" && typeof value !== "number") return null;
-  const number = Number(value);
-  return Number.isSafeInteger(number) && number >= min && number <= max ? number : null;
-}
-function strictUnder5ChildCount(value, max) {
-  return typeof value === "number" && Number.isSafeInteger(value) && Number.isInteger(max) && value >= 0 && value <= max ? value : null;
-}
-function storedUnder5ChildCount(value, partySize) {
-  if (value === "" || value === undefined || value === null) return null;
-  const count = Number.isInteger(partySize) ? strictUnder5ChildCount(value, partySize) : null;
-  if (count === null) throw new Error("Invalid saved under-5 child count");
-  return count;
-}
-function partyLimit(guest) {
-  if (guest.pax_limit === "" || guest.pax_limit === undefined || guest.pax_limit === null) return 1;
-  const limit = strictInteger(guest.pax_limit, 1, MAX_PARTY_SIZE);
-  if (limit === null) throw new Error("Invalid party limit");
-  return limit;
-}
-function responseStatus(value) {
-  const map = { confirmed: "attending", attending: "attending", maybe: "unsure", unsure: "unsure", declined: "unable", unable: "unable" };
-  return map[String(value || "").trim().toLowerCase()] || null;
-}
-function latestOwnRecord(guest, rows) {
-  const own = rows.filter(function (row) { return String(row.guest_id) === String(guest.guest_id); });
-  if (!own.length) return guest;
-  const versioned = own.filter(function (row) { return strictInteger(row.revision, 1, Number.MAX_SAFE_INTEGER) !== null; });
-  if (versioned.length) {
-    const revisions = versioned.map(function (row) { return Number(row.revision); });
-    if (new Set(revisions).size !== revisions.length) throw new Error("Duplicate revisions");
-    return versioned.reduce(function (latest, row) { return Number(row.revision) > Number(latest.revision) ? row : latest; });
-  }
-  // Legacy log timestamps, not physical Sheet order; ambiguous records fail closed.
-  const dated = own.map(function (row) { return {row: row, time: expiryInstant(row.timestamp)}; });
-  if (dated.some(function (item) { return item.time === null; })) throw new Error("Invalid historical timestamp");
-  dated.sort(function (a, b) { return b.time - a.time; });
-  if (dated.length > 1 && dated[0].time === dated[1].time) throw new Error("Ambiguous historical responses");
-  return dated[0].row;
-}
-function ownRsvpResponse(guest, rows) {
-  const latest = latestOwnRecord(guest, rows);
-  const status = responseStatus(latest.rsvp_status);
-  const responsePartySize = status === "attending" ? strictInteger(latest.pax_count, 1, MAX_PARTY_SIZE) : null;
-  return {
-    status: status,
-    partySize: responsePartySize,
-    partyLimit: partyLimit(guest),
-    under5ChildCount: status === "attending" ? storedUnder5ChildCount(latest.under_5_child_count, responsePartySize) : null,
-    dietaryRequirements: status === "attending" ? privateFormText(latest.dietary_notes) : "",
-    // Organizer special_notes/personal_message are intentionally never read here.
-    privateNote: latest === guest ? "" : privateFormText(latest.private_note)
-  };
-}
-function privateFormText(value) {
-  if (value === undefined || value === null || value === "") return "";
-  if (!validateGuestText(value)) throw new Error("Invalid saved form text");
-  return value;
-}
-function validateGuestText(value) {
-  return typeof value === "string" && value.length <= 500 && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value);
-}
-function validateRsvp(request, guest) {
-  const errors = {};
-  const allowed = ["action", "token", "requestId", "status", "partySize", "under5ChildCount", "dietaryRequirements", "privateNote"];
-  if (Object.keys(request).some(function (key) { return !allowed.includes(key); })) errors.form = "Unexpected fields";
-  if (typeof request.requestId !== "string" || !/^[a-f0-9]{32}$/.test(request.requestId)) errors.form = "Invalid request identifier";
-  if (!["attending", "unsure", "unable"].includes(request.status)) errors.status = "Choose a response";
-  const count = request.status === "attending" ? strictInteger(request.partySize, 1, partyLimit(guest)) : null;
-  if (request.status === "attending" && count === null) errors.partySize = "Enter a whole number within your invitation allowance";
-  const childCount = request.status === "attending" ? strictUnder5ChildCount(request.under5ChildCount, count) : null;
-  if (request.status === "attending" && childCount === null) errors.under5ChildCount = "Enter an under-5 child count from zero to the attending party size";
-  if (!validateGuestText(request.dietaryRequirements)) errors.dietaryRequirements = "Use up to 500 characters";
-  if (!validateGuestText(request.privateNote)) errors.privateNote = "Use up to 500 characters";
-  if (request.status !== "attending" && (request.partySize !== null || request.dietaryRequirements !== "")) errors.form = "Attendance fields must be empty";
-  return { errors: errors, value: { status: request.status, partySize: count, under5ChildCount: childCount, dietaryRequirements: request.dietaryRequirements, privateNote: request.privateNote } };
-}
-function literalSheetText(value) {
-  // Apostrophe forces literal text in Sheets; getValues returns the original text.
-  return typeof value === "string" && value !== "" ? "'" + value : value;
-}
-function saveRsvp(spreadsheet, token, request) {
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) return apiError("temporary_error");
-  try {
-    // Resolve identity/revocation inside the lock; never trust client guest IDs.
-    const guest = authorizeGuest(spreadsheet, token, new Date());
-    if (!guest) return apiError("invalid_invitation");
-    const checked = validateRsvp(request, guest);
-    if (Object.keys(checked.errors).length) return { schemaVersion: API_VERSION, state: "validation_error", errors: checked.errors };
-    const store = readRows(spreadsheet, "RSVP", RSVP_HEADERS);
-    const prior = store.rows.find(function (row) { return String(row.guest_id) === String(guest.guest_id) && row.request_id === request.requestId; });
-    const value = checked.value;
-    if (prior) {
-      const priorStatus = responseStatus(prior.rsvp_status);
-      const priorPartySize = priorStatus === "attending" ? strictInteger(prior.pax_count, 1, MAX_PARTY_SIZE) : null;
-      const priorChildCount = priorStatus === "attending" ? storedUnder5ChildCount(prior.under_5_child_count, priorPartySize) : null;
-      if (priorStatus !== value.status || priorPartySize !== value.partySize || priorChildCount !== value.under5ChildCount ||
-          String(prior.dietary_notes || "") !== value.dietaryRequirements || String(prior.private_note || "") !== value.privateNote) {
-        return { schemaVersion: API_VERSION, state: "validation_error", errors: { form: "Use a new request identifier for an edited response" } };
-      }
-      return { schemaVersion: API_VERSION, state: "saved", rsvp: ownRsvpResponse(guest, store.rows) };
+    const data = parsePostData(e);
+    const action = normalize(data.action || "rsvp");
+
+    if (action === "memory") {
+      return saveMemoryPost(data);
     }
-    const latest = latestOwnRecord(guest, store.rows);
-    const revision = (strictInteger(latest.revision, 1, Number.MAX_SAFE_INTEGER) || 0) + 1;
-    if (!Number.isSafeInteger(revision)) throw new Error("Revision overflow");
-    const record = {
-      revision: revision,
-      response_id: Utilities.getUuid(), request_id: request.requestId, timestamp: new Date(), guest_id: guest.guest_id,
-      rsvp_status: { attending: "confirmed", unsure: "maybe", unable: "declined" }[value.status],
-      pax_count: value.status === "attending" ? value.partySize : value.status === "unable" ? 0 : "",
-      under_5_child_count: value.under5ChildCount === null ? "" : value.under5ChildCount,
-      dietary_notes: value.dietaryRequirements, private_note: value.privateNote
-    };
-    store.sheet.appendRow(store.headers.map(function (key) { return literalSheetText(Object.prototype.hasOwnProperty.call(record, key) ? record[key] : ""); }));
-    return { schemaVersion: API_VERSION, state: "saved", rsvp: ownRsvpResponse(guest, store.rows.concat([record])) };
-  } finally { lock.releaseLock(); }
+
+    if (action === "rsvp") {
+      return saveRsvpPost(data);
+    }
+
+    return jsonResponse({
+      success: false,
+      error: "Invalid action",
+    });
+  } catch (error) {
+    return jsonResponse({
+      success: false,
+      error: "Server error",
+      message: error.message,
+    });
+  }
 }
+
+/**
+ * Saves an RSVP response.
+ *
+ * This is the original RSVP flow, moved into its own helper so doPost() can
+ * also route memory submissions without mixing the two actions.
+ */
+function saveRsvpPost(data) {
+  const token = normalize(data.token);
+  const guestId = normalize(data.guest_id);
+  const rsvpStatus = normalizeRsvpStatus(data.rsvp_status);
+
+  if (!token || !guestId || !rsvpStatus) {
+    return jsonResponse({
+      success: false,
+      error: "Invalid RSVP response",
+    });
+  }
+
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const guestsSheet = spreadsheet.getSheetByName(SHEET_NAMES.guests);
+
+  if (!guestsSheet) {
+    throw new Error("Missing sheet: " + SHEET_NAMES.guests);
+  }
+
+  const guestLookup = findGuestRowByToken(guestsSheet, token);
+
+  if (!guestLookup) {
+    return jsonResponse({
+      success: false,
+      error: "Invalid invitation link",
+    });
+  }
+
+  if (normalize(guestLookup.guest.guest_id) !== guestId) {
+    return jsonResponse({
+      success: false,
+      error: "Guest ID does not match invitation token",
+    });
+  }
+
+  const paxCount = cleanPaxCount(
+    data.pax_count,
+    rsvpStatus,
+    guestLookup.guest.pax_limit
+  );
+
+  if (!paxCount.success) {
+    return jsonResponse({
+      success: false,
+      error: paxCount.error,
+    });
+  }
+
+  const savedResponse = {
+    response_id: Utilities.getUuid(),
+    timestamp: new Date(),
+    guest_id: guestLookup.guest.guest_id,
+    token: guestLookup.guest.token,
+    rsvp_status: rsvpStatus,
+    pax_count: paxCount.value,
+    dietary_notes: cleanText(data.dietary_notes),
+    special_notes: cleanText(data.special_notes),
+  };
+
+  // The lock prevents two quick submissions from writing over each other.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    appendRsvpResponse(spreadsheet, savedResponse);
+    updateGuestRsvp(guestsSheet, guestLookup.rowNumber, savedResponse);
+  } finally {
+    lock.releaseLock();
+  }
+
+  return jsonResponse({
+    success: true,
+    message: "RSVP saved",
+  });
+}
+
+/**
+ * Saves a memory message for review.
+ *
+ * The message is not published immediately. It is saved with approved = no,
+ * so Louis & Joyce can review it before it appears on the memory board.
+ */
+function saveMemoryPost(data) {
+  const token = normalize(data.token);
+  const guestId = normalize(data.guest_id);
+  const message = cleanText(data.message);
+
+  if (!token) {
+    return jsonResponse({
+      success: false,
+      error: "Invalid invitation link",
+    });
+  }
+
+  if (!message) {
+    return jsonResponse({
+      success: false,
+      error: "Message cannot be empty",
+    });
+  }
+
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const guestsSheet = spreadsheet.getSheetByName(SHEET_NAMES.guests);
+
+  if (!guestsSheet) {
+    throw new Error("Missing sheet: " + SHEET_NAMES.guests);
+  }
+
+  const guestLookup = findGuestRowByToken(guestsSheet, token);
+
+  if (!guestLookup) {
+    return jsonResponse({
+      success: false,
+      error: "Invalid invitation link",
+    });
+  }
+
+  if (guestId && normalize(guestLookup.guest.guest_id) !== guestId) {
+    return jsonResponse({
+      success: false,
+      error: "Guest ID does not match invitation token",
+    });
+  }
+
+  const savedMessage = {
+    message_id: Utilities.getUuid(),
+    timestamp: new Date(),
+    guest_id: guestLookup.guest.guest_id,
+    guest_name: guestLookup.guest.guest_name,
+    table_id: guestLookup.guest.table_id,
+    group_name: guestLookup.guest.group_name,
+    prompt_type: cleanText(data.prompt_type),
+    message,
+    approved: "no",
+  };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    appendMemoryMessage(spreadsheet, savedMessage);
+  } finally {
+    lock.releaseLock();
+  }
+
+  return jsonResponse({
+    success: true,
+    message: "Memory saved for review",
+  });
+}
+
+/**
+ * Reads the Settings sheet and converts key/value rows into one object.
+ *
+ * Example sheet:
+ * key          | value
+ * wedding_date_display | 2026年12月5日 · 星期六
+ *
+ * Becomes:
+ * { wedding_date_display: "2026年12月5日 · 星期六" }
+ */
+function readSettings(spreadsheet, sheetName) {
+  const rows = readSheetObjects(spreadsheet, sheetName);
+
+  return rows.reduce((settings, row) => {
+    if (row.key) {
+      settings[row.key] = row.value;
+    }
+
+    return settings;
+  }, {});
+}
+
+/**
+ * Reads confirmed menu items from the Menu sheet.
+ *
+ * Rules:
+ * - Only rows with is_confirmed = yes are returned.
+ * - Rows are sorted by display_order.
+ * - If the Menu sheet is missing or empty, return an empty list so the
+ *   frontend can safely show menu_status from Settings.
+ */
+function readMenu(spreadsheet, sheetName) {
+  const rows = readOptionalSheetObjects(spreadsheet, sheetName);
+
+  return rows
+    .filter((row) => normalize(row.is_confirmed) === "yes")
+    .sort((first, second) => getDisplayOrder(first) - getDisplayOrder(second));
+}
+
+/**
+ * Decides whether final table assignments may be shown publicly.
+ *
+ * table_check_enabled = yes works as a manual release switch.
+ * table_release_date is the automatic release date in yyyy-MM-dd format.
+ */
+function createTableVisibility(settings) {
+  const releaseDate = getSettingValue(
+    settings,
+    "table_release_date",
+    DEFAULT_TABLE_RELEASE_DATE
+  );
+  const isManualRelease =
+    normalize(getSettingValue(settings, "table_check_enabled", "no")) === "yes";
+  const isReleased = isManualRelease || isDateOnOrAfterRelease(releaseDate);
+
+  return {
+    isReleased,
+    releaseDate,
+    message: isReleased
+      ? getSettingValue(settings, "table_released_copy", DEFAULT_TABLE_RELEASED_COPY)
+      : getSettingValue(settings, "table_locked_copy", DEFAULT_TABLE_LOCKED_COPY),
+  };
+}
+
+/**
+ * Compares today's date against the release date using the script timezone.
+ */
+function isDateOnOrAfterRelease(releaseDate) {
+  const cleanReleaseDate = String(releaseDate || DEFAULT_TABLE_RELEASE_DATE).trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanReleaseDate)) {
+    return false;
+  }
+
+  const timezone = Session.getScriptTimeZone() || "Asia/Kuala_Lumpur";
+  const today = Utilities.formatDate(new Date(), timezone, "yyyy-MM-dd");
+  return today >= cleanReleaseDate;
+}
+
+/**
+ * Reads one Settings value with a safe fallback.
+ */
+function getSettingValue(settings, key, fallback) {
+  if (
+    !settings ||
+    settings[key] === undefined ||
+    settings[key] === null ||
+    settings[key] === ""
+  ) {
+    return fallback;
+  }
+
+  return settings[key];
+}
+
+/**
+ * Converts display_order into a number for sorting.
+ */
+function getDisplayOrder(row) {
+  const order = parseInt(row.display_order, 10);
+
+  if (isNaN(order)) {
+    return 9999;
+  }
+
+  return order;
+}
+
+/**
+ * Finds confirmed guests from the same social group as the current guest.
+ *
+ * Rules:
+ * - Uses Guests.group_name, not a separate sheet.
+ * - Only confirmed guests are returned.
+ * - Pending, maybe, and declined guests are never returned.
+ * - Private fields are removed before sending data to the website.
+ *
+ * The current guest and same-table guests may still be included here so the
+ * frontend can compare total group count against same-table count.
+ */
+function getConfirmedGroupMembers(guests, guest, hideTable) {
+  const groupName = normalize(guest.group_name);
+
+  if (!groupName) {
+    return [];
+  }
+
+  return guests
+    .filter((row) => normalize(row.group_name) === groupName)
+    .filter((row) => normalize(row.rsvp_status) === "confirmed")
+    .map((row) => removePrivateGuestFields(row, { hideTable }));
+}
+
+/**
+ * Finds approved memory messages from the same social group as the current guest.
+ *
+ * Rules:
+ * - Uses Messages.group_name so split tables can still share one memory board.
+ * - Only approved = yes/true/approved messages are returned.
+ * - Messages from other groups and unapproved messages are never returned.
+ */
+function getApprovedGroupMessages(messages, guest) {
+  const groupName = normalize(guest.group_name);
+
+  if (!groupName) {
+    return [];
+  }
+
+  return messages
+    .filter((row) => normalize(row.group_name) === groupName)
+    .filter((row) => isApproved(row.approved))
+    .map(removePrivateMessageFields);
+}
+
+/**
+ * Manual utility: generate missing guest tokens and invitation URLs.
+ *
+ * How to use:
+ * 1. Open this Apps Script project.
+ * 2. Select `generateMissingGuestTokensAndInviteUrls` from the function list.
+ * 3. Click Run.
+ *
+ * Important:
+ * - This function only updates Guests rows where `token` is blank.
+ * - It never overwrites an existing token.
+ * - Tokens are random and are not based on guest names.
+ */
+function generateMissingGuestTokensAndInviteUrls() {
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = spreadsheet.getSheetByName(SHEET_NAMES.guests);
+
+  if (!sheet) {
+    throw new Error("Missing sheet: " + SHEET_NAMES.guests);
+  }
+
+  const values = sheet.getDataRange().getValues();
+
+  if (values.length < 2) {
+    Logger.log("No guest rows found.");
+    return;
+  }
+
+  const headers = values[0].map((header) => normalizeHeader(header));
+  const tokenColumn = headers.indexOf("token");
+  const inviteUrlColumn = headers.indexOf("invite_url");
+
+  if (tokenColumn === -1) {
+    throw new Error("Missing column in Guests: token");
+  }
+
+  if (inviteUrlColumn === -1) {
+    throw new Error("Missing column in Guests: invite_url");
+  }
+
+  const existingTokens = collectExistingTokens(values, tokenColumn);
+  let updatedCount = 0;
+
+  // Start at index 1 because index 0 is the header row.
+  for (let index = 1; index < values.length; index += 1) {
+    const rowNumber = index + 1;
+    const currentToken = normalize(values[index][tokenColumn]);
+
+    if (currentToken) {
+      continue;
+    }
+
+    const newToken = createUniqueGuestToken(existingTokens);
+    const inviteUrl = INVITE_URL_BASE + newToken;
+
+    sheet.getRange(rowNumber, tokenColumn + 1).setValue(newToken);
+    sheet.getRange(rowNumber, inviteUrlColumn + 1).setValue(inviteUrl);
+    existingTokens.add(newToken);
+    updatedCount += 1;
+  }
+
+  Logger.log("Generated invitation tokens for " + updatedCount + " guest row(s).");
+}
+
+/**
+ * Collects all existing tokens so newly generated tokens cannot duplicate them.
+ */
+function collectExistingTokens(values, tokenColumn) {
+  const tokens = new Set();
+
+  values.slice(1).forEach((row) => {
+    const token = normalize(row[tokenColumn]);
+
+    if (token) {
+      tokens.add(token);
+    }
+  });
+
+  return tokens;
+}
+
+/**
+ * Creates one random token and checks it against the token list.
+ *
+ * Utilities.getUuid() gives us a random value. We remove dashes and keep a
+ * shorter 16-character token so the invitation URL stays tidy.
+ */
+function createUniqueGuestToken(existingTokens) {
+  let token = "";
+
+  do {
+    token = Utilities.getUuid().replace(/-/g, "").slice(0, 16).toLowerCase();
+  } while (existingTokens.has(token));
+
+  return token;
+}
+
+/**
+ * Reads POST data from the website.
+ *
+ * The frontend sends JSON.stringify(payload), so the main path reads
+ * e.postData.contents and parses it as JSON.
+ */
+function parsePostData(e) {
+  if (e && e.postData && e.postData.contents) {
+    try {
+      return JSON.parse(e.postData.contents);
+    } catch (error) {
+      return parseFormEncodedText(e.postData.contents);
+    }
+  }
+
+  if (e && e.parameter && Object.keys(e.parameter).length) {
+    return Object.assign({}, e.parameter);
+  }
+
+  return {};
+}
+
+/**
+ * Converts text like "token=abc&rsvp_status=confirmed" into an object.
+ */
+function parseFormEncodedText(text) {
+  return String(text || "")
+    .split("&")
+    .reduce((data, pair) => {
+      const parts = pair.split("=");
+      const key = decodeFormValue(parts[0]);
+      const value = decodeFormValue(parts.slice(1).join("="));
+
+      if (key) {
+        data[key] = value;
+      }
+
+      return data;
+    }, {});
+}
+
+function decodeFormValue(value) {
+  return decodeURIComponent(String(value || "").replace(/\+/g, " "));
+}
+
+/**
+ * Finds the guest row number in the Guests sheet by token.
+ *
+ * Apps Script rows start at 1, so the first data row is row 2.
+ */
+function findGuestRowByToken(sheet, token) {
+  const values = sheet.getDataRange().getValues();
+
+  if (values.length < 2) {
+    return null;
+  }
+
+  const headers = values[0].map((header) => normalizeHeader(header));
+  const tokenColumn = headers.indexOf("token");
+
+  if (tokenColumn === -1) {
+    throw new Error("Missing column in Guests: token");
+  }
+
+  for (let index = 1; index < values.length; index += 1) {
+    if (normalize(values[index][tokenColumn]) === token) {
+      return {
+        guest: rowToObject(headers, values[index]),
+        rowNumber: index + 1,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Adds a fresh RSVP record to the RSVP sheet.
+ */
+function appendRsvpResponse(spreadsheet, responseData) {
+  const sheet = spreadsheet.getSheetByName(SHEET_NAMES.rsvp);
+
+  if (!sheet) {
+    throw new Error("Missing sheet: " + SHEET_NAMES.rsvp);
+  }
+
+  const headers = sheet
+    .getRange(1, 1, 1, sheet.getLastColumn())
+    .getValues()[0]
+    .map((header) => normalizeHeader(header));
+
+  const row = headers.map((header) => {
+    if (responseData[header] !== undefined) {
+      return responseData[header];
+    }
+
+    return "";
+  });
+
+  sheet.appendRow(row);
+}
+
+/**
+ * Adds one memory message to the Messages sheet.
+ *
+ * Expected Messages columns:
+ * message_id | timestamp | guest_id | guest_name | table_id | group_name |
+ * prompt_type | message | approved
+ */
+function appendMemoryMessage(spreadsheet, messageData) {
+  const sheet = spreadsheet.getSheetByName(SHEET_NAMES.messages);
+
+  if (!sheet) {
+    throw new Error("Missing sheet: " + SHEET_NAMES.messages);
+  }
+
+  const headers = sheet
+    .getRange(1, 1, 1, sheet.getLastColumn())
+    .getValues()[0]
+    .map((header) => normalizeHeader(header));
+  const requiredHeaders = [
+    "message_id",
+    "timestamp",
+    "guest_id",
+    "guest_name",
+    "table_id",
+    "group_name",
+    "prompt_type",
+    "message",
+    "approved",
+  ];
+
+  requiredHeaders.forEach((header) => {
+    if (headers.indexOf(header) === -1) {
+      throw new Error("Missing column in Messages: " + header);
+    }
+  });
+
+  const row = headers.map((header) => {
+    if (messageData[header] !== undefined) {
+      return messageData[header];
+    }
+
+    return "";
+  });
+
+  sheet.appendRow(row);
+}
+
+/**
+ * Updates the latest RSVP details back into the Guests sheet.
+ */
+function updateGuestRsvp(sheet, rowNumber, responseData) {
+  const headers = sheet
+    .getRange(1, 1, 1, sheet.getLastColumn())
+    .getValues()[0]
+    .map((header) => normalizeHeader(header));
+
+  setCellByHeader(sheet, rowNumber, headers, "rsvp_status", responseData.rsvp_status);
+  setCellByHeader(sheet, rowNumber, headers, "pax_count", responseData.pax_count);
+  setCellByHeader(
+    sheet,
+    rowNumber,
+    headers,
+    "dietary_notes",
+    responseData.dietary_notes
+  );
+  setCellByHeader(
+    sheet,
+    rowNumber,
+    headers,
+    "special_notes",
+    responseData.special_notes
+  );
+}
+
+/**
+ * Updates one cell by column name so the sheet columns can be reordered later.
+ */
+function setCellByHeader(sheet, rowNumber, headers, headerName, value) {
+  const columnIndex = headers.indexOf(headerName);
+
+  if (columnIndex === -1) {
+    throw new Error("Missing column in Guests: " + headerName);
+  }
+
+  sheet.getRange(rowNumber, columnIndex + 1).setValue(value);
+}
+
+/**
+ * Converts button/form values into the statuses used by the Guests sheet.
+ */
+function normalizeRsvpStatus(value) {
+  const status = normalize(value);
+
+  if (["attending", "attend", "confirmed", "yes", "会出席"].indexOf(status) !== -1) {
+    return "confirmed";
+  }
+
+  if (
+    ["unsure", "not sure", "not_sure", "maybe", "暂时不确定", "还不确定"]
+      .indexOf(status) !== -1
+  ) {
+    return "maybe";
+  }
+
+  if (
+    ["unable", "cannot attend", "cannot_attend", "declined", "no", "无法出席"]
+      .indexOf(status) !== -1
+  ) {
+    return "declined";
+  }
+
+  return "";
+}
+
+/**
+ * Attending guests need at least 1 pax.
+ *
+ * If Guests.pax_limit is blank, guests can enter pax_count normally.
+ * If Guests.pax_limit has a number, pax_count cannot be higher than that limit.
+ */
+function cleanPaxCount(value, rsvpStatus, paxLimitValue) {
+  if (rsvpStatus === "declined") {
+    return {
+      success: true,
+      value: 0,
+    };
+  }
+
+  if (rsvpStatus !== "confirmed") {
+    return {
+      success: true,
+      value: "",
+    };
+  }
+
+  const paxCount = parseInt(value, 10);
+  const cleanCount = isNaN(paxCount) || paxCount < 1 ? 1 : paxCount;
+  const paxLimit = cleanPaxLimit(paxLimitValue);
+
+  if (paxLimit && cleanCount > paxLimit) {
+    return {
+      success: false,
+      error: "Pax count exceeds pax_limit",
+    };
+  }
+
+  return {
+    success: true,
+    value: cleanCount,
+  };
+}
+
+/**
+ * Converts Guests.pax_limit into a usable number.
+ *
+ * Blank, zero, or non-number values mean there is no guest-specific limit.
+ */
+function cleanPaxLimit(value) {
+  const paxLimit = parseInt(value, 10);
+
+  if (isNaN(paxLimit) || paxLimit < 1) {
+    return null;
+  }
+
+  return paxLimit;
+}
+
+/**
+ * Keeps free-text notes tidy before saving them into the spreadsheet.
+ */
+function cleanText(value) {
+  return String(value || "").trim().slice(0, 500);
+}
+
+/**
+ * Reads the token from the URL query parameter.
+ *
+ * Example:
+ * ?token=jason-a7k29x
+ */
+function getTokenFromRequest(e) {
+  if (!e || !e.parameter || !e.parameter.token) {
+    return "";
+  }
+
+  return normalize(e.parameter.token);
+}
+
+/**
+ * Reads a sheet and converts each row into an object.
+ *
+ * Example:
+ * Header row:
+ * guest_id | token | guest_name
+ *
+ * Data row:
+ * G001 | jason-a7k29x | Jason
+ *
+ * Becomes:
+ * { guest_id: "G001", token: "jason-a7k29x", guest_name: "Jason" }
+ */
+function readSheetObjects(spreadsheet, sheetName) {
+  const sheet = spreadsheet.getSheetByName(sheetName);
+
+  if (!sheet) {
+    throw new Error("Missing sheet: " + sheetName);
+  }
+
+  const values = sheet.getDataRange().getValues();
+
+  if (values.length < 2) {
+    return [];
+  }
+
+  const headers = values[0].map((header) => normalizeHeader(header));
+  const rows = values.slice(1);
+
+  return rows
+    .filter((row) => row.some((cell) => cell !== ""))
+    .map((row) => rowToObject(headers, row));
+}
+
+/**
+ * Reads a sheet if it exists. Missing optional sheets return an empty list.
+ */
+function readOptionalSheetObjects(spreadsheet, sheetName) {
+  const sheet = spreadsheet.getSheetByName(sheetName);
+
+  if (!sheet) {
+    return [];
+  }
+
+  return readSheetObjects(spreadsheet, sheetName);
+}
+
+/**
+ * Converts a spreadsheet row array into an object using the header row.
+ */
+function rowToObject(headers, row) {
+  const item = {};
+
+  headers.forEach((header, index) => {
+    if (!header) {
+      return;
+    }
+
+    item[header] = formatCellValue(row[index]);
+  });
+
+  return item;
+}
+
+/**
+ * Removes private guest fields before sending API data to the website.
+ *
+ * Keep this guard for older sheet copies that may still contain removed fields.
+ */
+function removePrivateGuestFields(guest, options) {
+  const publicGuest = Object.assign({}, guest);
+  delete publicGuest.whatsapp;
+  delete publicGuest.table_locked;
+  delete publicGuest.invitation_status;
+  delete publicGuest.plus_one_allowed;
+
+  if (options && options.hideTable) {
+    delete publicGuest.table_id;
+  }
+
+  return publicGuest;
+}
+
+/**
+ * Removes fields that should never be part of the public memory board.
+ */
+function removePrivateMessageFields(message) {
+  const publicMessage = Object.assign({}, message);
+  delete publicMessage.whatsapp;
+  delete publicMessage.rsvp_status;
+  delete publicMessage.token;
+  return publicMessage;
+}
+
+/**
+ * Only approved memory messages should be shown publicly.
+ */
+function isApproved(value) {
+  const normalized = normalize(value);
+  return normalized === "true" || normalized === "yes" || normalized === "approved";
+}
+
+/**
+ * Makes text comparison safer by trimming spaces and converting to lowercase.
+ */
+function normalize(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+/**
+ * Converts spreadsheet headers into clean object keys.
+ */
+function normalizeHeader(value) {
+  return String(value || "").trim();
+}
+
+/**
+ * Formats cell values so JSON output is easier to read.
+ */
+function formatCellValue(value) {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return value;
+}
+
+/**
+ * DEPLOYMENT INSTRUCTIONS
+ *
+ * 1. Open Google Apps Script:
+ *    https://script.google.com/
+ *
+ * 2. Create a new Apps Script project.
+ *
+ * 3. Paste this entire file into the script editor.
+ *
+ * 4. Make sure the Google Sheet has these tabs:
+ *    - Guests
+ *    - Tables
+ *    - RSVP
+ *    - Messages
+ *    - Settings
+ *    - Menu
+ *
+ * 5. Click Deploy.
+ *
+ * 6. Choose New deployment.
+ *
+ * 7. Select type: Web app.
+ *
+ * 8. Set:
+ *    - Execute as: Me
+ *    - Who has access: Anyone
+ *
+ * 9. Click Deploy.
+ *
+ * 10. Copy the Web App URL.
+ *
+ * 11. Test the API in your browser:
+ *     WEB_APP_URL?token=jason-a7k29x
+ *
+ * Expected valid response:
+ * {
+ *   "success": true,
+ *   "guest": {...},
+ *   "table": {...},
+ *   "confirmedTableMembers": [...],
+ *   "confirmedGroupMembers": [...],
+ *   "messages": [...],
+ *   "settings": {...},
+ *   "menu": [...]
+ * }
+ *
+ * Expected invalid response:
+ * {
+ *   "success": false,
+ *   "error": "Invalid invitation link"
+ * }
+ */
