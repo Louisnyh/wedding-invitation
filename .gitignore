@@ -1,0 +1,6 @@
+.DS_Store
+dist/
+node_modules/
+work/
+.env*
+dist-v2/
