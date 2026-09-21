@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Louis & Joyce · Soft Garden Evening</title>
+    <meta name="referrer" content="no-referrer" />
+    <title>Louis & Joyce · 5 December 2026</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
@@ -12,21 +13,19 @@
         <img
           class="hero-photo"
           src="assets/photos/hero-main.webp"
-          data-fallback-src="assets/photos/hero-main.PNG"
-          alt="Louis 与 Joyce 在暖色树林光线中的合照"
+          width="2400"
+          height="1600"
+          alt="Louis 与 Joyce 穿着礼服躺在草地上，一起望向镜头微笑。"
           fetchpriority="high"
-          onerror="if (this.dataset.fallbackSrc && this.src.indexOf(this.dataset.fallbackSrc) === -1) { this.src = this.dataset.fallbackSrc; } else { this.hidden = true; }"
         />
-        <div class="hero-overlay" aria-hidden="true"></div>
-        <div class="hero-content scene-reveal">
-          <p class="kicker">Soft Garden Evening</p>
-          <h1 id="hero-title">Louis & Joyce</h1>
-          <p class="hero-date">2026年12月5日 · 星期六</p>
+        <div class="hero-content">
+          <h1 id="hero-title" lang="en">Louis &amp; Joyce</h1>
+          <p class="hero-date"><time datetime="2026-12-05" lang="en">5 December 2026</time></p>
           <div
             class="wedding-countdown"
             id="wedding-countdown"
             data-target="2026-12-05T18:00:00+08:00"
-            aria-live="polite"
+            aria-live="off"
           >
             <p>距离这一天还有</p>
             <div class="countdown-values">
@@ -36,16 +35,7 @@
               <span><strong id="countdown-seconds">--</strong> 秒</span>
             </div>
           </div>
-          <p class="hero-line">我们没有想把婚礼做得很夸张。
-
-只是希望晚风、暖灯、舒服的座位、
-被认真安排的晚餐，
-以及每一个细节，
-
-都能让来到的人感觉到：
-
-这一天，
-我们真的有认真准备。</p>
+          <p class="hero-line">我们要结婚了。期待与你一起，见证这一天。</p>
         </div>
       </section>
 
@@ -59,19 +49,8 @@
             <figure class="story-photo">
               <img
                 src="assets/photos/story-01.webp"
-                data-fallback-src="assets/photos/story-01.JPG"
                 alt="Louis 与 Joyce 的日常合照"
                 loading="lazy"
-                onerror="if (this.dataset.fallbackSrc && this.src.indexOf(this.dataset.fallbackSrc) === -1) { this.src = this.dataset.fallbackSrc; } else { this.closest('figure').hidden = true; }"
-              />
-            </figure>
-            <figure class="story-photo story-photo-optional" hidden>
-              <img
-                src="assets/photos/story-02.webp"
-                data-fallback-src="assets/photos/story-02.jpg"
-                alt="Louis 与 Joyce 的另一张日常合照"
-                loading="lazy"
-                onerror="if (this.dataset.fallbackSrc && this.src.indexOf(this.dataset.fallbackSrc) === -1) { this.src = this.dataset.fallbackSrc; } else { this.closest('figure').hidden = true; }"
               />
             </figure>
           </div>
@@ -99,13 +78,13 @@
               src="assets/photos/personal-note.webp"
               alt="Louis 与 Joyce 的婚礼合照"
               loading="lazy"
-              onerror="this.closest('figure').hidden = true;"
             />
           </figure>
           <div class="personal-panel scene-reveal">
             <p class="kicker" id="guest-category-label">专属邀请</p>
-            <h2 id="personal-title"></h2>
-            <p id="personal-message"></p>
+            <h2 id="personal-title">正在为你打开专属婚礼邀请。</h2>
+            <p id="personal-message" role="status">请稍等一下。</p>
+            <button class="rsvp-save" id="invitation-retry" type="button" hidden>重新读取邀请</button>
             <p class="personal-signature">Louis & Joyce</p>
           </div>
         </div>
@@ -121,29 +100,6 @@
         </div>
       </section>
 
-      <section class="scene dining-scene" aria-labelledby="dining-title">
-        <div class="scene-inner dining-layout">
-          <div class="scene-heading scene-reveal">
-            <p class="kicker" id="dining-kicker">晚宴体验</p>
-            <h2 id="dining-title">晚餐安排</h2>
-            <p id="dining-copy">
-              这一次的晚餐，我们希望节奏是舒服的。
-
-              宾客入座后，第一道菜会由服务员送上。
-
-              主菜会由 service team 送到每一桌，具体上菜节奏会根据当天的服务流程安排。
-
-              甜点则会安排成 Dessert Table，让大家在晚宴后段可以比较轻松地自行取用。
-
-              我们希望大家不用一直想着下一道流程，
-
-              而是可以好好坐下来吃饭、聊天，也慢慢进入这个晚上。
-            </p>
-          </div>
-          <div class="dining-steps scene-reveal" id="dining-steps"></div>
-        </div>
-      </section>
-
       <section class="scene table-scene" aria-labelledby="table-title">
         <div class="scene-inner table-layout">
           <div class="scene-heading scene-reveal">
@@ -153,64 +109,11 @@
           <div class="table-story scene-reveal">
             <div>
               <span id="table-story-label">Check Your Table</span>
-              <p id="table-story">
-                我们会在接近婚礼时开放 Check Your Table。
-
-                现在先让你看看，
-                那天会有哪些熟悉的人也会来到。
-              </p>
-            </div>
-            <div hidden>
-              <span id="table-theme-label">给你的安排</span>
-              <p id="table-theme"></p>
+              <p id="table-story" role="status">请稍等一下。</p>
             </div>
             <button class="table-check-button" id="table-check-button" type="button" disabled>
-              婚礼前开放 Check Your Table
+              正在查询…
             </button>
-          </div>
-        </div>
-      </section>
-
-      <section class="scene members-scene" id="members-section" aria-labelledby="members-title">
-        <div class="scene-inner">
-          <div class="scene-heading scene-reveal">
-            <p class="kicker" id="members-kicker">熟悉面孔</p>
-            <h2 id="members-title">那晚，你会见到一些熟悉的人。</h2>
-            <p id="members-copy">
-              有些人可能不会坐在同一桌，
-              但都会在那一晚出现。
-            </p>
-          </div>
-          <ul class="member-list scene-reveal" id="member-list"></ul>
-        </div>
-      </section>
-
-      <section class="scene memory-scene" aria-labelledby="memory-title">
-        <div class="scene-inner memory-layout">
-          <div class="scene-heading scene-reveal">
-            <p class="kicker">留下一段记忆</p>
-            <h2 id="memory-title">写给新人，也写给此刻的自己。</h2>
-            <p>
-              选一个问题，留下一段会被认真读完的话。
-            </p>
-          </div>
-
-          <div class="memory-panel scene-reveal">
-            <div class="memory-board" id="memory-board"></div>
-            <p class="memory-note">这段留言会出现在同一个圈子的留言区。</p>
-            <div class="prompt-list" id="prompt-list" aria-label="记忆问题"></div>
-            <form class="memory-form" id="memory-form">
-              <label for="memory-input">你的回答</label>
-              <textarea
-                id="memory-input"
-                name="memory"
-                rows="5"
-                maxlength="180"
-                placeholder="写下一段你仍然记得的画面。"
-              ></textarea>
-              <button type="submit">保存这段记忆</button>
-            </form>
-            <div class="memory-confirmation" id="memory-confirmation" aria-live="polite"></div>
           </div>
         </div>
       </section>
@@ -221,25 +124,45 @@
             <p class="kicker">出席回复</p>
             <h2 id="rsvp-title">12月5日，可以把这个晚上留给我们吗？</h2>
             <div class="rsvp-options" role="group" aria-label="出席回复选项">
-              <button class="rsvp-option" type="button" data-rsvp="attending">
+              <button class="rsvp-option" type="button" disabled aria-pressed="false" data-rsvp="attending">
                 我会出席
               </button>
-              <button class="rsvp-option" type="button" data-rsvp="unsure">
+              <button class="rsvp-option" type="button" disabled aria-pressed="false" data-rsvp="unsure">
                 暂时不确定
               </button>
-              <button class="rsvp-option" type="button" data-rsvp="unable">
+              <button class="rsvp-option" type="button" disabled aria-pressed="false" data-rsvp="unable">
                 无法出席
               </button>
             </div>
 
-            <div class="rsvp-followup" id="rsvp-followup" aria-live="polite">
-              <p class="rsvp-placeholder">请选择一个回复，我们会为你安排后续细节。</p>
+            <div class="rsvp-followup" id="rsvp-followup">
+              <p class="rsvp-placeholder" id="rsvp-status" role="status" tabindex="-1">邀请资料载入中。</p>
+              <div id="rsvp-editor" hidden>
+                <form class="attending-form" id="rsvp-form" novalidate>
+                  <div class="field" id="party-field">
+                    <label for="guest-count">出席人数</label>
+                    <input id="guest-count" name="partySize" type="text" inputmode="numeric" pattern="[1-9][0-9]*" aria-describedby="party-hint" />
+                    <p id="party-hint"></p>
+                  </div>
+                  <div class="field" id="dietary-field">
+                    <label for="dietary">饮食需求 / 过敏事项（选填）</label>
+                    <input id="dietary" name="dietaryRequirements" type="text" maxlength="500" />
+                  </div>
+                  <div class="field">
+                    <label for="private-note">留给我们的话（选填，仅 Louis &amp; Joyce 可见）</label>
+                    <textarea id="private-note" name="privateNote" rows="3" maxlength="500"></textarea>
+                  </div>
+                  <button class="rsvp-save" id="rsvp-save" type="submit">保存出席回复</button>
+                </form>
+              </div>
+              <button class="rsvp-save" id="edit-rsvp" type="button" hidden>需要修改回复</button>
             </div>
           </div>
         </div>
       </section>
     </main>
 
-    <script src="script.js"></script>
+    <noscript>请启用 JavaScript 以读取专属邀请、回复出席及查询桌位。</noscript>
+    <script type="module" src="script.js"></script>
   </body>
 </html>
