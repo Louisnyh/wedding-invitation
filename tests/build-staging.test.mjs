@@ -128,6 +128,18 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.ok(!/table-check|src="script.js"|href="style.css"/.test(html));
  const remoteDist=await build({frontend:'v2',apiUrl:'https://script.google.com/macros/s/example/exec'});
  const remoteConfig=await readFile(`${remoteDist}/js/config.js`,'utf8');assert.match(remoteConfig,/https:\/\/script\.google\.com\/macros\/s\/example\/exec/);assert.match(remoteConfig,/PREVIEW_TOKEN = ""/);
+ const namespace='release-v2-20260921';
+ const publicDist=await build({frontend:'v2',apiUrl:'https://script.google.com/macros/s/example/exec',publicRootNamespace:namespace});
+ const publicFiles=(await readdir(publicDist,{recursive:true,withFileTypes:true})).filter(item=>item.isFile()).map(item=>(item.parentPath+'/'+item.name).slice(publicDist.length+1));
+ assert.deepEqual(publicFiles.sort(),['index.html',...openingFiles.map(file=>`${namespace}/${file}`)].sort());
+ const publicHtml=await readFile(`${publicDist}/index.html`,'utf8');
+ assert.match(publicHtml,new RegExp(`<base href="\\./${namespace}/frontend-v2/"`));
+ assert.match(publicHtml,/styles\/page-08\.css/);
+ const publicConfig=await readFile(`${publicDist}/${namespace}/js/config.js`,'utf8');
+ assert.match(publicConfig,/https:\/\/script\.google\.com\/macros\/s\/example\/exec/);assert.match(publicConfig,/PREVIEW_TOKEN = ""/);
+ assert.equal(new URL('styles/page-08.css',`https://example.invalid/wedding-invitation/${namespace}/frontend-v2/`).pathname,`/wedding-invitation/${namespace}/frontend-v2/styles/page-08.css`);
+ assert.equal(new URL('../assets/photos/hero-main.webp',`https://example.invalid/wedding-invitation/${namespace}/frontend-v2/`).pathname,`/wedding-invitation/${namespace}/assets/photos/hero-main.webp`);
+ await assert.rejects(build({frontend:'v2',publicRootNamespace:'../unsafe'}));
  await assert.rejects(build({frontend:'unknown'}));
 });
 test('frontend v2 preview serves public assets and only its synthetic RSVP API',async()=>{

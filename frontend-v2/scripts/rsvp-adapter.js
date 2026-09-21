@@ -3,6 +3,23 @@ import { createApi } from '../../js/api.js';
 import { createRsvpState, changeRsvp, editRsvp, startSaving, finishSaving } from '../../js/rsvp-state.js';
 
 const DIETARY_ORDER = ['vegetarian','allergy','other'];
+const TOKEN_PATTERN = /^[a-f0-9]{16,128}$/i;
+
+export function captureInvitationToken({
+  locationLike = globalThis.location,
+  historyLike = globalThis.history,
+  previewToken = PREVIEW_TOKEN
+} = {}) {
+  const params = new URLSearchParams(locationLike.search);
+  const queryToken = params.get('token') || '';
+  if (params.has('token')) {
+    params.delete('token');
+    const query = params.toString();
+    historyLike.replaceState(historyLike.state, '', `${locationLike.pathname}${query ? `?${query}` : ''}${locationLike.hash || ''}`);
+  }
+  const token = queryToken || previewToken;
+  return TOKEN_PATTERN.test(token) ? token : '';
+}
 
 export const SUCCESS_COPY = Object.freeze({
   attending: {date:'05 · 12 · 2026',copy:'那天见。'},
@@ -92,7 +109,7 @@ function setupPage08() {
   const dietaryInputs = [...section.querySelectorAll('input[name="dietarySelections"]')];
   const allergyInput = dietaryInputs.find(input=>input.value==='allergy');
   const otherInput = dietaryInputs.find(input=>input.value==='other');
-  const token = new URLSearchParams(location.search).get('token') || PREVIEW_TOKEN;
+  const token = captureInvitationToken();
   const api = createApi({url:API_URL,token});
   let rsvp = null;
   let authorized = false;
@@ -191,7 +208,7 @@ function setupPage08() {
   }
 
   async function loadInvitation() {
-    if(loading)return;if(!/^[a-f0-9]{16,128}$/i.test(token)){invalidate();return;}
+    if(loading)return;if(!TOKEN_PATTERN.test(token)){invalidate();return;}
     loading=true;elements.loading.textContent='正在读取你的邀请…';render();const response=await api('invitation');loading=false;
     if(response.state==='invalid_invitation'){invalidate();return;}
     if(response.state!=='ready'){
