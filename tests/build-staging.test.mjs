@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
-import {build,root,openingFiles} from '../scripts/build.mjs';
+import {build,root,openingFiles,socialFiles} from '../scripts/build.mjs';
 import {startStaging} from '../scripts/staging.mjs';
 import {TOKEN_A} from './fixtures.mjs';
 test('retired legacy builder refuses to package the mixed public-cutover root',async()=>{
@@ -17,8 +17,10 @@ test('retired legacy preview refuses to serve the mixed public-cutover root',asy
 test('frontend v2 builds an exact independent allowlist without touching the legacy output',async()=>{
  const dist=await build({frontend:'v2'});
  const files=(await readdir(dist,{recursive:true,withFileTypes:true})).filter(item=>item.isFile()).map(item=>(item.parentPath+'/'+item.name).slice(dist.length+1));
- assert.deepEqual(files.sort(),[...openingFiles].sort());
- for(const file of openingFiles.filter(file=>file!=='js/config.js')) assert.deepEqual(await readFile(`${dist}/${file}`),await readFile(`${root}/${file}`));
+ const socialOutputFiles=socialFiles.map(file=>`frontend-v2/${file.asset}`);
+ assert.deepEqual(files.sort(),[...openingFiles,...socialOutputFiles].sort());
+ for(const file of openingFiles.filter(file=>!['js/config.js','frontend-v2/index.html'].includes(file))) assert.deepEqual(await readFile(`${dist}/${file}`),await readFile(`${root}/${file}`));
+ for(const [index,file] of socialFiles.entries()) assert.deepEqual(await readFile(`${dist}/${socialOutputFiles[index]}`),await readFile(`${root}/${file.source}`));
  const defaultConfig=await readFile(`${dist}/js/config.js`,'utf8');assert.match(defaultConfig,/API_URL = ""/);assert.match(defaultConfig,/PREVIEW_TOKEN = ""/);
  const html=await readFile(`${dist}/frontend-v2/index.html`,'utf8');
  assert.ok(html.includes('assets/photos/hero-main.webp'));
@@ -108,17 +110,27 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.ok(!/scroll|requestAnimationFrame|preventDefault/.test(revealJs));
  assert.ok(!html.slice(0,html.indexOf('<section class="story"')).includes('data-reveal'));
  assert.ok(html.includes('scripts/reveal.js'));
+ assert.match(html,/<link rel="canonical" href="https:\/\/louisnyh\.github\.io\/wedding-invitation\/" \/>/);
+ assert.equal([...html.matchAll(/<meta property="og:image" /g)].length,1);
+ assert.match(html,/<meta property="og:title" content="Louis &amp; Joyce · Wedding Invitation" \/>/);
+ assert.match(html,/<meta property="og:description" content="We're getting married · 23 January 2027" \/>/);
+ assert.match(html,/<meta name="twitter:card" content="summary_large_image" \/>/);
  assert.ok(!/animation-timeline/.test(chapterCss));
  assert.ok(!/table-check|src="script.js"|href="style.css"/.test(html));
  const remoteDist=await build({frontend:'v2',apiUrl:'https://script.google.com/macros/s/example/exec'});
  const remoteConfig=await readFile(`${remoteDist}/js/config.js`,'utf8');assert.match(remoteConfig,/https:\/\/script\.google\.com\/macros\/s\/example\/exec/);assert.match(remoteConfig,/PREVIEW_TOKEN = ""/);
- const namespace='release-v2-20260921';
+ const namespace='release-v2-20260922-r3';
  const publicDist=await build({frontend:'v2',apiUrl:'https://script.google.com/macros/s/example/exec',publicRootNamespace:namespace});
  const publicFiles=(await readdir(publicDist,{recursive:true,withFileTypes:true})).filter(item=>item.isFile()).map(item=>(item.parentPath+'/'+item.name).slice(publicDist.length+1));
- assert.deepEqual(publicFiles.sort(),['index.html',...openingFiles.map(file=>`${namespace}/${file}`)].sort());
+ assert.deepEqual(publicFiles.sort(),['index.html',...openingFiles.map(file=>`${namespace}/${file}`),...socialFiles.map(file=>`${namespace}/${file.asset}`)].sort());
  const publicHtml=await readFile(`${publicDist}/index.html`,'utf8');
  assert.match(publicHtml,new RegExp(`<base href="\\./${namespace}/frontend-v2/"`));
  assert.match(publicHtml,/styles\/page-08\.css/);
+ const ogImage=`https://louisnyh.github.io/wedding-invitation/${namespace}/assets/social/wedding-share-2027-og.jpg`;
+ assert.ok(publicHtml.includes(`<meta property="og:image" content="${ogImage}" />`));
+ assert.ok(publicHtml.includes(`<meta property="og:image:secure_url" content="${ogImage}" />`));
+ assert.ok(publicHtml.includes(`<meta name="twitter:image" content="${ogImage}" />`));
+ assert.equal([...publicHtml.matchAll(/<meta property="og:image" /g)].length,1);
  const publicConfig=await readFile(`${publicDist}/${namespace}/js/config.js`,'utf8');
  assert.match(publicConfig,/https:\/\/script\.google\.com\/macros\/s\/example\/exec/);assert.match(publicConfig,/PREVIEW_TOKEN = ""/);
  assert.equal(new URL('styles/page-08.css',`https://example.invalid/wedding-invitation/${namespace}/frontend-v2/`).pathname,`/wedding-invitation/${namespace}/frontend-v2/styles/page-08.css`);

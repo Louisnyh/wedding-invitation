@@ -3,12 +3,18 @@ const timezone = '+08:00';
 const receptionTime = '5:30 PM';
 const ceremonyTime = '6:00 PM';
 const dinnerTime = '7:15 PM';
+const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function timeTo24Hour(display) {
   const [, hourText, minute, period] = /^(\d{1,2}):(\d{2}) (AM|PM)$/.exec(display);
   let hour = Number(hourText) % 12;
   if (period === 'PM') hour += 12;
   return `${String(hour).padStart(2, '0')}:${minute}`;
+}
+
+function formatShareDate(isoDate) {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  return `${day} ${monthNames[month - 1]} ${year}`;
 }
 
 const content = {
@@ -36,6 +42,13 @@ const content = {
       {time: '8:15 PM', title: 'Celebrate With Us'},
       {time: '9:00 - 10:00 PM', title: 'Stay A Little Longer'}
     ]
+  },
+  share: {
+    title: 'Louis & Joyce · Wedding Invitation',
+    description: `We're getting married · ${formatShareDate(dateISO)}`,
+    canonicalUrl: 'https://louisnyh.github.io/wedding-invitation/',
+    imageAlt: 'Louis and Joyce walking together by the sea at sunset on their wedding invitation cover.',
+    ogImageAsset: 'assets/social/wedding-share-2027-og.jpg'
   }
 };
 
