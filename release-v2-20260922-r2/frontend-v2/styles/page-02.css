@@ -1,0 +1,139 @@
+.story {
+  min-height: 100svh;
+  padding: clamp(88px, 11svh, 132px) clamp(22px, 6vw, 92px) clamp(104px, 13svh, 156px);
+  color: var(--color-charcoal);
+  background: var(--color-ivory);
+}
+
+.story__content {
+  max-width: 560px;
+}
+
+.story__chapter {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--color-lavender);
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.34em;
+}
+
+.story__chapter::after {
+  width: 42px;
+  height: 1px;
+  content: "";
+  background: currentColor;
+  opacity: 0.72;
+}
+
+.story__title {
+  margin: clamp(30px, 4.5svh, 48px) 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(40px, 4vw, 64px);
+  font-weight: 400;
+  line-height: 1.03;
+  letter-spacing: -0.025em;
+}
+
+.story__copy {
+  max-width: 540px;
+  margin-top: clamp(38px, 5.5svh, 58px);
+  font-size: clamp(16px, 1.2vw, 19px);
+  font-weight: 400;
+  line-height: 1.9;
+}
+
+.story__copy p + p {
+  margin-top: 1.35em;
+}
+
+.story__closing {
+  margin-top: clamp(42px, 6svh, 64px);
+}
+
+.story__date {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 2vw, 30px);
+  line-height: 1.1;
+  letter-spacing: 0.045em;
+}
+
+.story__waiting {
+  margin-top: 10px;
+  font-size: clamp(15px, 1.1vw, 17px);
+  line-height: 1.7;
+}
+
+.story__figure {
+  margin: 0;
+}
+
+.story__photo {
+  width: 100%;
+  height: auto;
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .story {
+    display: flex;
+    flex-direction: column;
+    padding-inline: clamp(48px, 8vw, 76px);
+  }
+
+  .story__content {
+    width: min(78%, 600px);
+  }
+
+  .story__figure {
+    align-self: flex-end;
+    width: min(62vw, 480px);
+    margin-top: clamp(72px, 10svh, 108px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .story {
+    display: grid;
+    grid-template-columns: minmax(0, 1.12fr) minmax(320px, 0.88fr);
+    align-items: center;
+    column-gap: clamp(64px, 8vw, 140px);
+  }
+
+  .story__content {
+    justify-self: start;
+  }
+
+  .story__figure {
+    justify-self: end;
+    width: min(100%, calc(76svh * 2 / 3));
+  }
+}
+
+@media (max-width: 767px) {
+  .story {
+    padding-inline: clamp(20px, 6vw, 28px);
+  }
+
+  .story__title {
+    font-size: clamp(38px, 11.2vw, 48px);
+  }
+
+  .story__copy {
+    margin-top: 38px;
+    font-size: clamp(16px, 4.2vw, 18px);
+    line-height: 1.85;
+  }
+
+  .story__copy br {
+    display: none;
+  }
+
+  .story__closing {
+    margin-top: 44px;
+  }
+
+  .story__figure {
+    margin-top: 64px;
+  }
+}
