@@ -53,7 +53,7 @@ async function startOpeningPreview(port) {
       const target = resolve(dist, file);
       const targetFromDist = relative(dist, target);
       if (targetFromDist === '..' || targetFromDist.startsWith(`..${sep}`)) {res.writeHead(404); res.end(); return;}
-      const mime = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'application/javascript; charset=utf-8','.webp':'image/webp','.jpg':'image/jpeg'}[extname(file)];
+      const mime = {'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'application/javascript; charset=utf-8','.webp':'image/webp','.jpg':'image/jpeg','.m4a':'audio/mp4'}[extname(file)];
       const body = await readFile(target);
       res.writeHead(200, {'Content-Type':mime}); res.end(req.method === 'HEAD' ? undefined : body);
     } catch {res.writeHead(404); res.end();}

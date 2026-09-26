@@ -12,6 +12,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400&amp;family=Noto+Sans+SC:wght@400&amp;display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles/tokens.css" />
     <link rel="stylesheet" href="styles/base.css" />
+    <link rel="stylesheet" href="styles/music.css" />
     <link rel="stylesheet" href="styles/page-01.css" />
     <link rel="stylesheet" href="styles/page-02.css" />
     <link rel="stylesheet" href="styles/page-03-04.css" />
@@ -22,6 +23,16 @@
     <link rel="stylesheet" href="styles/motion.css" />
   </head>
   <body>
+    <audio id="wedding-music" loop preload="metadata" aria-hidden="true">
+      <source src="assets/audio/canon-in-love.m4a" type="audio/mp4" />
+    </audio>
+    <button class="music-control" id="music-control" type="button" aria-label="Play background music" aria-pressed="false">
+      <svg class="music-control__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M9 17.5V7.25l9-2v10.25" />
+        <circle cx="6.75" cy="17.5" r="2.25" />
+        <circle cx="15.75" cy="15.5" r="2.25" />
+      </svg>
+    </button>
     <main>
       <section class="opening" aria-labelledby="opening-names">
         <img class="opening__photo" src="assets/photos/hero-main.webp" width="2400" height="1600" fetchpriority="high" alt="Louis and Joyce together in a wide wedding portrait on the grass." />
@@ -292,6 +303,7 @@
     <script type="module" src="scripts/countdown.js"></script>
     <script type="module" src="scripts/editorial-sequence.js"></script>
     <script type="module" src="scripts/reveal.js"></script>
+    <script type="module" src="scripts/wedding-music.js"></script>
     <script type="module" src="scripts/rsvp-adapter.js"></script>
   </body>
 </html>

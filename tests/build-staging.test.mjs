@@ -32,6 +32,9 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.ok(html.includes('styles/page-06.css'));
  assert.ok(html.includes('styles/page-07.css'));
  assert.ok(html.includes('styles/page-08.css'));
+ assert.ok(html.includes('styles/music.css'));
+ assert.ok(html.includes('scripts/wedding-music.js'));
+ assert.ok(html.includes('assets/audio/canon-in-love.m4a'));
  assert.ok(html.includes('styles/motion.css'));
  assert.ok(html.includes('assets/photos/forever-starts-here-8433a-54.jpg'));
  assert.ok(html.includes('assets/photos/louis-portrait-8433a-53.jpg'));
@@ -119,14 +122,14 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.ok(!/table-check|src="script.js"|href="style.css"/.test(html));
  const remoteDist=await build({frontend:'v2',apiUrl:'https://script.google.com/macros/s/example/exec'});
  const remoteConfig=await readFile(`${remoteDist}/js/config.js`,'utf8');assert.match(remoteConfig,/https:\/\/script\.google\.com\/macros\/s\/example\/exec/);assert.match(remoteConfig,/PREVIEW_TOKEN = ""/);
- const namespace='release-v2-20260922-r3';
+ const namespace='release-v2-20260926-r4';
  const publicDist=await build({frontend:'v2',apiUrl:'https://script.google.com/macros/s/example/exec',publicRootNamespace:namespace});
  const publicFiles=(await readdir(publicDist,{recursive:true,withFileTypes:true})).filter(item=>item.isFile()).map(item=>(item.parentPath+'/'+item.name).slice(publicDist.length+1));
  assert.deepEqual(publicFiles.sort(),['index.html',...openingFiles.map(file=>`${namespace}/${file}`),...socialFiles.map(file=>`${namespace}/${file.asset}`)].sort());
  const publicHtml=await readFile(`${publicDist}/index.html`,'utf8');
  assert.match(publicHtml,new RegExp(`<base href="\\./${namespace}/frontend-v2/"`));
  assert.match(publicHtml,/styles\/page-08\.css/);
- const ogImage=`https://louisnyh.github.io/wedding-invitation/${namespace}/assets/social/wedding-share-2027-og.jpg`;
+ const ogImage='https://louisnyh.github.io/wedding-invitation/release-v2-20260922-r3/assets/social/wedding-share-2027-og.jpg';
  assert.ok(publicHtml.includes(`<meta property="og:image" content="${ogImage}" />`));
  assert.ok(publicHtml.includes(`<meta property="og:image:secure_url" content="${ogImage}" />`));
  assert.ok(publicHtml.includes(`<meta name="twitter:image" content="${ogImage}" />`));
@@ -157,7 +160,9 @@ test('frontend v2 preview serves public assets and only its synthetic RSVP API',
   assert.equal(new URL('assets/photos/emotional-closing-8433a-113.jpg',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/assets/photos/emotional-closing-8433a-113.jpg');
   assert.equal(new URL('assets/photos/love-story-8433a-20.jpg',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/assets/photos/love-story-8433a-20.jpg');
   assert.equal(new URL('assets/photos/forever-starts-here-8433a-54.jpg',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/assets/photos/forever-starts-here-8433a-54.jpg');
+  assert.equal(new URL('assets/audio/canon-in-love.m4a',githubPagesBase).pathname,'/wedding-invitation/frontend-v2/assets/audio/canon-in-love.m4a');
   for(const file of openingFiles) assert.equal((await fetch(result.url+'/'+file)).status,200,file);
+  assert.equal((await fetch(result.url+'/frontend-v2/assets/audio/canon-in-love.m4a')).headers.get('content-type'),'audio/mp4');
   for(const file of ['apps-script.gs','tests/fixtures.mjs','tests/harness.mjs','.git/config','.env','index.html','script.js','assets/photos/hero-main.jpg','_staging','_staging/stats']) assert.equal((await fetch(result.url+'/'+file)).status,404,file);
   const previewConfig=await fetch(result.url+'/js/config.js').then(value=>value.text());assert.ok(previewConfig.includes(TOKEN_A));assert.match(previewConfig,/API_URL = "\/api"/);
   const ready=await fetch(result.url+'/api',{method:'POST',body:JSON.stringify({action:'invitation',token:TOKEN_A})}).then(value=>value.json());assert.equal(ready.state,'ready');assert.equal(ready.guest.displayName,'测试宾客 A');

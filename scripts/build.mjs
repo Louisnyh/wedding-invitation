@@ -4,19 +4,21 @@ import { resolve,dirname } from 'node:path';
 import { WEDDING_CONTENT } from '../frontend-v2/scripts/wedding-content.js';
 export const root = fileURLToPath(new URL('../',import.meta.url));
 export const shippedFiles = ['index.html','style.css','script.js','js/api.js','js/schema.js','js/rsvp-state.js','js/table-check.js','js/config.js','assets/photos/hero-main.webp','assets/photos/story-01.webp','assets/photos/personal-note.webp','assets/google-maps.png','assets/waze.png'];
-export const openingFiles = ['frontend-v2/index.html','frontend-v2/styles/tokens.css','frontend-v2/styles/base.css','frontend-v2/styles/page-01.css','frontend-v2/styles/page-02.css','frontend-v2/styles/page-03-04.css','frontend-v2/styles/page-05.css','frontend-v2/styles/page-06.css','frontend-v2/styles/page-07.css','frontend-v2/styles/page-08.css','frontend-v2/styles/motion.css','frontend-v2/scripts/wedding-content.js','frontend-v2/scripts/wedding-content-renderer.js','frontend-v2/scripts/countdown.js','frontend-v2/scripts/editorial-sequence.js','frontend-v2/scripts/reveal.js','frontend-v2/scripts/rsvp-adapter.js','js/api.js','js/schema.js','js/rsvp-state.js','js/config.js','frontend-v2/assets/photos/hero-main.webp','frontend-v2/assets/photos/love-story-8433a-20.jpg','frontend-v2/assets/photos/forever-starts-here-8433a-54.jpg','frontend-v2/assets/photos/louis-portrait-8433a-53.jpg','frontend-v2/assets/photos/joyce-portrait-8433a-57.jpg','frontend-v2/assets/photos/emotional-closing-8433a-113.jpg'];
+export const openingFiles = ['frontend-v2/index.html','frontend-v2/styles/tokens.css','frontend-v2/styles/base.css','frontend-v2/styles/music.css','frontend-v2/styles/page-01.css','frontend-v2/styles/page-02.css','frontend-v2/styles/page-03-04.css','frontend-v2/styles/page-05.css','frontend-v2/styles/page-06.css','frontend-v2/styles/page-07.css','frontend-v2/styles/page-08.css','frontend-v2/styles/motion.css','frontend-v2/scripts/wedding-content.js','frontend-v2/scripts/wedding-content-renderer.js','frontend-v2/scripts/countdown.js','frontend-v2/scripts/editorial-sequence.js','frontend-v2/scripts/reveal.js','frontend-v2/scripts/wedding-music.js','frontend-v2/scripts/rsvp-adapter.js','js/api.js','js/schema.js','js/rsvp-state.js','js/config.js','frontend-v2/assets/audio/canon-in-love.m4a','frontend-v2/assets/photos/hero-main.webp','frontend-v2/assets/photos/love-story-8433a-20.jpg','frontend-v2/assets/photos/forever-starts-here-8433a-54.jpg','frontend-v2/assets/photos/louis-portrait-8433a-53.jpg','frontend-v2/assets/photos/joyce-portrait-8433a-57.jpg','frontend-v2/assets/photos/emotional-closing-8433a-113.jpg'];
 export const socialFiles = [
   {source:'frontend-v2/assets/social/wedding-share-2027-landscape.png',asset:'assets/social/wedding-share-2027-landscape.png'},
   {source:'frontend-v2/assets/social/wedding-share-2027-og.jpg',asset:'assets/social/wedding-share-2027-og.jpg'}
 ];
 
 const shareMarker = '    <!-- wedding-share-metadata -->';
+const approvedShareImageNamespace = 'release-v2-20260922-r3';
 const escapeAttribute = value => value.replaceAll('&','&amp;').replaceAll('"','&quot;');
 
 export function renderShareMetadata(publicRootNamespace='') {
   const share = WEDDING_CONTENT.share;
   const assetPrefix = publicRootNamespace ? `${publicRootNamespace}/` : 'frontend-v2/';
-  const imageUrl = new URL(`${assetPrefix}${share.ogImageAsset}`,share.canonicalUrl).href;
+  const imageNamespace = publicRootNamespace ? `${approvedShareImageNamespace}/` : assetPrefix;
+  const imageUrl = new URL(`${imageNamespace}${share.ogImageAsset}`,share.canonicalUrl).href;
   const title = escapeAttribute(share.title);
   const description = escapeAttribute(share.description);
   const canonicalUrl = escapeAttribute(share.canonicalUrl);
