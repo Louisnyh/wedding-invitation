@@ -122,7 +122,7 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.ok(!/table-check|src="script.js"|href="style.css"/.test(html));
  const remoteDist=await build({frontend:'v2',apiUrl:'https://script.google.com/macros/s/example/exec'});
  const remoteConfig=await readFile(`${remoteDist}/js/config.js`,'utf8');assert.match(remoteConfig,/https:\/\/script\.google\.com\/macros\/s\/example\/exec/);assert.match(remoteConfig,/PREVIEW_TOKEN = ""/);
- const namespace='release-v2-20260926-r4';
+ const namespace='release-v2-20260927-r5';
  const publicDist=await build({frontend:'v2',apiUrl:'https://script.google.com/macros/s/example/exec',publicRootNamespace:namespace});
  const publicFiles=(await readdir(publicDist,{recursive:true,withFileTypes:true})).filter(item=>item.isFile()).map(item=>(item.parentPath+'/'+item.name).slice(publicDist.length+1));
  assert.deepEqual(publicFiles.sort(),['index.html',...openingFiles.map(file=>`${namespace}/${file}`),...socialFiles.map(file=>`${namespace}/${file.asset}`)].sort());

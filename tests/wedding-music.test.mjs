@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {readFile,stat} from 'node:fs/promises';
 import {openingFiles,renderShareMetadata} from '../scripts/build.mjs';
-import {initWeddingMusic,WEDDING_MUSIC_VOLUME} from '../frontend-v2/scripts/wedding-music.js';
+import {initWeddingMusic,WEDDING_MUSIC_SWIPE_THRESHOLD,WEDDING_MUSIC_VOLUME} from '../frontend-v2/scripts/wedding-music.js';
 
 const root = new URL('../',import.meta.url);
 const html = await readFile(new URL('../frontend-v2/index.html',import.meta.url),'utf8');
@@ -55,6 +55,19 @@ function setup() {
   return {audio,button,documentTarget,windowTarget,controller};
 }
 
+function touchEvent(type,y,{touches=true}={}) {
+  const event = new Event(type);
+  Object.defineProperty(event,touches?'touches':'changedTouches',{value:[{clientY:y}]});
+  return event;
+}
+
+function swipe(target,startY,endY) {
+  target.dispatchEvent(touchEvent('touchstart',startY));
+  target.dispatchEvent(touchEvent('touchend',endY,{touches:false}));
+}
+
+const flush = () => new Promise(resolve=>setImmediate(resolve));
+
 test('one persistent wedding audio element exists',()=>{
   assert.equal([...html.matchAll(/<audio\b/g)].length,1);
   assert.match(html,/<audio id="wedding-music"/);
@@ -90,6 +103,123 @@ test('controller initializes paused UI and volume 0.35',()=>{
   assert.equal(button.getAttribute('aria-pressed'),'false');
   assert.equal(button.getAttribute('aria-label'),'Play background music');
   assert.equal(button.classList.contains('is-playing'),false);
+  assert.deepEqual(setup().controller.getState(),{autoStartArmed:true,explicitDecision:false});
+});
+
+test('qualifying upward touch swipe calls play directly from touchend',async()=>{
+  const {audio,documentTarget} = setup();
+  let dispatching = false;
+  let calledDuringGesture = false;
+  audio.play = () => {
+    calledDuringGesture = dispatching;
+    audio.playCalls += 1;
+    audio.paused = false;
+    audio.dispatchEvent(new Event('play'));
+    return Promise.resolve();
+  };
+  documentTarget.dispatchEvent(touchEvent('touchstart',200));
+  dispatching = true;
+  documentTarget.dispatchEvent(touchEvent('touchend',200-WEDDING_MUSIC_SWIPE_THRESHOLD,{touches:false}));
+  dispatching = false;
+  await flush();
+  assert.equal(audio.playCalls,1);
+  assert.equal(calledDuringGesture,true);
+});
+
+test('movement below the swipe threshold does not start music',async()=>{
+  const {audio,documentTarget,controller} = setup();
+  swipe(documentTarget,200,200-WEDDING_MUSIC_SWIPE_THRESHOLD+1);
+  await flush();
+  assert.equal(audio.playCalls,0);
+  assert.equal(controller.getState().autoStartArmed,true);
+});
+
+test('opposite-direction touch swipe does not start music',async()=>{
+  const {audio,documentTarget,controller} = setup();
+  swipe(documentTarget,100,150);
+  await flush();
+  assert.equal(audio.playCalls,0);
+  assert.equal(controller.getState().autoStartArmed,true);
+});
+
+test('scroll event alone never starts music',()=>{
+  const {audio,documentTarget} = setup();
+  documentTarget.dispatchEvent(new Event('scroll'));
+  assert.equal(audio.playCalls,0);
+});
+
+test('desktop wheel event never starts music',()=>{
+  const {audio,documentTarget} = setup();
+  documentTarget.dispatchEvent(new Event('wheel'));
+  assert.equal(audio.playCalls,0);
+});
+
+test('manual Play disables swipe auto-start',async()=>{
+  const {audio,button,documentTarget,controller} = setup();
+  button.dispatchEvent(new Event('click'));
+  await flush();
+  assert.deepEqual(controller.getState(),{autoStartArmed:false,explicitDecision:true});
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,1);
+});
+
+test('manual Pause locks out future swipe playback',async()=>{
+  const {audio,button,documentTarget,controller} = setup();
+  swipe(documentTarget,200,100);
+  await flush();
+  button.dispatchEvent(new Event('click'));
+  await flush();
+  assert.equal(audio.pauseCalls,1);
+  assert.deepEqual(controller.getState(),{autoStartArmed:false,explicitDecision:true});
+  swipe(documentTarget,200,100);
+  documentTarget.dispatchEvent(new Event('scroll'));
+  await flush();
+  assert.equal(audio.playCalls,1);
+  assert.equal(audio.paused,true);
+});
+
+test('successful swipe playback updates the normal playing UI',async()=>{
+  const {audio,button,documentTarget,controller} = setup();
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(button.getAttribute('aria-pressed'),'true');
+  assert.equal(button.getAttribute('aria-label'),'Pause background music');
+  assert.deepEqual(controller.getState(),{autoStartArmed:false,explicitDecision:false});
+});
+
+test('rejected swipe playback is safe and is not retried',async()=>{
+  const {audio,button,documentTarget,controller} = setup();
+  audio.rejectPlay = true;
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,1);
+  assert.equal(button.getAttribute('aria-pressed'),'false');
+  assert.equal(controller.getState().autoStartArmed,false);
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,1);
+});
+
+test('swipe auto-start makes only one qualifying attempt',async()=>{
+  const {audio,documentTarget} = setup();
+  swipe(documentTarget,200,100);
+  await flush();
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,1);
+});
+
+test('fresh controller initialization re-arms swipe auto-start',async()=>{
+  const first = setup();
+  swipe(first.documentTarget,200,100);
+  await flush();
+  assert.equal(first.controller.getState().autoStartArmed,false);
+  const reloaded = setup();
+  assert.deepEqual(reloaded.controller.getState(),{autoStartArmed:true,explicitDecision:false});
+  swipe(reloaded.documentTarget,200,100);
+  await flush();
+  assert.equal(reloaded.audio.playCalls,1);
 });
 
 test('play invokes audio.play and updates only after playback succeeds',async()=>{
@@ -181,8 +311,8 @@ test('published audio remains materially smaller than the approved source',async
   assert.ok(published.size < source.size * 0.6);
 });
 
-test('approved Open Graph copy remains unchanged in the r4 build',()=>{
-  const metadata = renderShareMetadata('release-v2-20260926-r4');
+test('approved Open Graph copy remains unchanged in the r5 build',()=>{
+  const metadata = renderShareMetadata('release-v2-20260927-r5');
   assert.match(metadata,/<meta property="og:title" content="Louis &amp; Joyce · Wedding Invitation" \/>/);
   assert.match(metadata,/<meta property="og:description" content="We're getting married · 23 January 2027" \/>/);
   assert.match(metadata,/<link rel="canonical" href="https:\/\/louisnyh\.github\.io\/wedding-invitation\/" \/>/);
@@ -192,5 +322,5 @@ test('approved Open Graph copy remains unchanged in the r4 build',()=>{
 });
 
 test('backend candidate and previous immutable releases remain untouched',()=>{
-  assert.doesNotThrow(()=>execFileSync('git',['diff','--quiet','origin/main','--','apps-script.gs','candidate-v2','release-v2-20260921','release-v2-20260922-r2','release-v2-20260922-r3'],{cwd:root}));
+  assert.doesNotThrow(()=>execFileSync('git',['diff','--quiet','origin/main','--','apps-script.gs','candidate-v2','release-v2-20260921','release-v2-20260922-r2','release-v2-20260922-r3','release-v2-20260926-r4'],{cwd:root}));
 });
