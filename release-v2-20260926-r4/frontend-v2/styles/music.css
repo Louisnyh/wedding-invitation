@@ -1,0 +1,80 @@
+.music-control {
+  position: fixed;
+  z-index: 20;
+  top: max(14px, calc(env(safe-area-inset-top) + 10px));
+  right: max(14px, calc(env(safe-area-inset-right) + 10px));
+  display: grid;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  place-items: center;
+  color: var(--color-charcoal);
+  background: rgb(240 231 219 / 92%);
+  border: 1px solid rgb(136 119 199 / 48%);
+  border-radius: 50%;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.music-control::after {
+  position: absolute;
+  inset: -4px;
+  content: "";
+  border: 1px solid rgb(136 119 199 / 44%);
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.music-control:hover {
+  border-color: rgb(136 119 199 / 72%);
+}
+
+.music-control:active {
+  transform: scale(0.97);
+}
+
+.music-control.is-playing {
+  color: var(--color-lavender);
+  background: rgb(240 231 219 / 96%);
+  border-color: rgb(136 119 199 / 76%);
+}
+
+.music-control.is-playing::after {
+  animation: music-breathe 2.8s ease-out infinite;
+}
+
+.music-control__icon {
+  width: 21px;
+  height: 21px;
+  overflow: visible;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.music-control__icon path {
+  fill: none;
+}
+
+@keyframes music-breathe {
+  0%, 45% { opacity: 0; transform: scale(0.88); }
+  65% { opacity: 0.55; }
+  100% { opacity: 0; transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .music-control,
+  .music-control::after {
+    animation: none;
+    transition: none;
+  }
+
+  .music-control.is-playing::after {
+    opacity: 0.38;
+    transform: none;
+  }
+}
