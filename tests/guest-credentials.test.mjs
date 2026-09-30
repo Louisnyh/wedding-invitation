@@ -118,12 +118,32 @@ test('duplicate invite URLs block generation',()=>{
 
 for (const [name,row,pattern] of [
   ['invalid pax_limit',eligibleRow('Guest',0),/invalid pax_limit/],
-  ['blank guest_name',['','','','',2,'','','','family','Family','',''],/missing guest_name/],
-  ['blank guest_type',eligibleRow('Guest',2,'','Family'),/missing guest_type/],
-  ['blank group_name',eligibleRow('Guest',2,'family',''),/missing group_name/]
+  ['blank guest_name',['','','','',2,'','','','family','Family','',''],/missing guest_name/]
 ]) test(`${name} blocks generation`,()=>{
   const h=createHarness({fixtureData:credentialData([row])});
   assert.throws(()=>call(h.context,'generateGuestCredentials'),pattern);
+  assert.equal(h.stats.writes.length,0);
+});
+
+test('blank optional organizer metadata produces warnings but remains eligible',()=>{
+  const row=eligibleRow('Guest',2,'',''); row[10]='';
+  const h=createHarness({fixtureData:credentialData([row])});
+  const preview=call(h.context,'previewGuestCredentialGeneration');
+  assert.match(preview,/Eligible for generation: 1/);
+  assert.match(preview,/Missing optional guest_type \(warning\): 1/);
+  assert.match(preview,/Missing optional group_name \(warning\): 1/);
+  assert.match(preview,/Warnings: 2/);
+  assert.doesNotThrow(()=>call(h.context,'generateGuestCredentials'));
+  assert.equal(h.data.Guests[1][0],'guest-0001');
+  assert.equal(h.data.Guests[1][8],'');
+  assert.equal(h.data.Guests[1][9],'');
+  assert.equal(h.data.Guests[1][10],'');
+});
+
+test('malformed non-QA credentialed guest ID blocks generation',()=>{
+  const malformed=realRow('temporary-guest',token('f'));
+  const h=createHarness({fixtureData:credentialData([malformed,eligibleRow()])});
+  assert.throws(()=>call(h.context,'generateGuestCredentials'),/malformed credentialed guest_id/);
   assert.equal(h.stats.writes.length,0);
 });
 
@@ -146,11 +166,14 @@ test('missing token pepper is safely reported and blocks all writes',()=>{
   assert.equal(h.stats.writes.length,0);
 });
 
-test('existing credentialed rows and revoked QA credentials remain byte-for-byte unchanged',()=>{
+test('existing credentials and historical revoked partial QA rows remain byte-for-byte unchanged',()=>{
   const existing=realRow('guest-0003',token('b'));
-  const qa=qaRow();
+  const qa=qaRow(); qa[11]='';
   const h=createHarness({fixtureData:credentialData([existing,qa,eligibleRow()])});
   const before=[snapshot(h.data.Guests[1]),snapshot(h.data.Guests[2])];
+  const preview=call(h.context,'previewGuestCredentialGeneration');
+  assert.match(preview,/Partial credential rows: 0/);
+  assert.match(preview,/Eligible for generation: 1/);
   call(h.context,'generateGuestCredentials');
   assert.equal(snapshot(h.data.Guests[1]),before[0]);
   assert.equal(snapshot(h.data.Guests[2]),before[1]);

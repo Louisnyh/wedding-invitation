@@ -170,6 +170,7 @@ function analyzeGuestCredentialDataset(values) {
   const byGuestName = Object.create(null);
   const eligibleRows = [];
   const existingTokens = [];
+  const qaRows = [];
   let highestRealGuestNumber = 0;
   let alreadyCredentialed = 0;
   let partialCredentials = 0;
@@ -187,6 +188,7 @@ function analyzeGuestCredentialDataset(values) {
     const guestName = cleanCredentialCell(row.guest_name);
     const status = cleanCredentialCell(row.invitation_status).toLowerCase();
     const presentCount = [guestId, token, inviteUrl].filter(Boolean).length;
+    const isQa = isQaGuestId(guestId);
 
     addRowReference(byGuestId, guestId.toLowerCase(), rowNumber);
     addRowReference(byToken, token, rowNumber);
@@ -194,14 +196,9 @@ function analyzeGuestCredentialDataset(values) {
     addRowReference(byGuestName, guestName, rowNumber);
     if (token) existingTokens.push(token);
 
-    if (!guestName) {
-      missingGuestName += 1;
-      errors.push("Row " + rowNumber + " — missing guest_name");
-    }
-
-    if (guestId.toLowerCase().indexOf("guest-") === 0) {
+    if (guestId && !isQa) {
       const numericId = parseRealGuestId(guestId);
-      if (numericId === null) errors.push("Row " + rowNumber + " — invalid real guest_id format");
+      if (numericId === null) errors.push("Row " + rowNumber + " — malformed credentialed guest_id");
       else highestRealGuestNumber = Math.max(highestRealGuestNumber, numericId);
     }
 
@@ -210,6 +207,19 @@ function analyzeGuestCredentialDataset(values) {
     }
     if (inviteUrl && (!token || inviteUrl !== buildCanonicalGuestInviteUrl(token))) {
       errors.push("Row " + rowNumber + " — invite_url does not match its token or canonical root");
+    }
+
+    // Historical QA records remain immutable and are excluded from real-guest
+    // readiness, partial-credential, and sequence counts. Their identifiers and
+    // tokens still participate in dataset-wide duplicate/format validation.
+    if (isQa) {
+      qaRows.push({ rowNumber: rowNumber, completeness: credentialCompletenessState(row) });
+      return;
+    }
+
+    if (!guestName) {
+      missingGuestName += 1;
+      errors.push("Row " + rowNumber + " — missing guest_name");
     }
 
     if (presentCount > 0 && presentCount < 3) {
@@ -235,14 +245,13 @@ function analyzeGuestCredentialDataset(values) {
     }
     if (!cleanCredentialCell(row.guest_type)) {
       missingGuestType += 1;
-      errors.push("Row " + rowNumber + " — missing guest_type");
+      warnings.push("Row " + rowNumber + " — missing optional guest_type");
     }
     if (!cleanCredentialCell(row.group_name)) {
       missingGroupName += 1;
-      errors.push("Row " + rowNumber + " — missing group_name");
+      warnings.push("Row " + rowNumber + " — missing optional group_name");
     }
-    if (guestName && !status && validCredentialPaxLimit(row.pax_limit) &&
-        cleanCredentialCell(row.guest_type) && cleanCredentialCell(row.group_name)) {
+    if (guestName && !status && validCredentialPaxLimit(row.pax_limit)) {
       eligibleRows.push({ rowNumber: rowNumber });
     }
   });
@@ -260,6 +269,7 @@ function analyzeGuestCredentialDataset(values) {
     headers: headers,
     headerIndexes: headerIndexes,
     records: records,
+    qaRows: qaRows,
     eligibleRows: eligibleRows,
     existingTokens: existingTokens,
     highestRealGuestNumber: highestRealGuestNumber,
@@ -277,7 +287,9 @@ function analyzeGuestCredentialDataset(values) {
       missingGroupName: missingGroupName,
       duplicateGuestIds: duplicateReferenceCount(byGuestId),
       duplicateTokens: duplicateReferenceCount(byToken),
-      duplicateInviteUrls: duplicateReferenceCount(byInviteUrl)
+      duplicateInviteUrls: duplicateReferenceCount(byInviteUrl),
+      qaRows: qaRows.length,
+      qaPartialCredentials: qaRows.filter(function (row) { return row.completeness === "partial"; }).length
     }
   };
 }
@@ -289,7 +301,7 @@ function verifyGuestCredentialDataset(values) {
   });
   const qaRows = analysis.records.filter(function (item) {
     const id = cleanCredentialCell(item.record.guest_id);
-    return id && parseRealGuestId(id) === null;
+    return isQaGuestId(id);
   });
   const realTokens = realRows.map(function (item) { return cleanCredentialCell(item.record.token); });
   const realUrls = realRows.map(function (item) { return cleanCredentialCell(item.record.invite_url); });
@@ -334,8 +346,8 @@ function guestCredentialPreviewReport(plan) {
     "Planned last guest ID: " + (plan.plannedLastGuestId || "none"), "",
     "Invalid pax_limit: " + plan.counts.invalidPaxLimit,
     "Missing guest_name: " + plan.counts.missingGuestName,
-    "Missing guest_type: " + plan.counts.missingGuestType,
-    "Missing group_name: " + plan.counts.missingGroupName, "",
+    "Missing optional guest_type (warning): " + plan.counts.missingGuestType,
+    "Missing optional group_name (warning): " + plan.counts.missingGroupName, "",
     "Duplicate guest IDs: " + plan.counts.duplicateGuestIds,
     "Duplicate tokens: " + plan.counts.duplicateTokens,
     "Duplicate invite URLs: " + plan.counts.duplicateInviteUrls, "",
@@ -377,6 +389,17 @@ function parseRealGuestId(value) {
   if (!match) return null;
   const number = Number(match[1]);
   return Number.isSafeInteger(number) && number >= 1 ? number : null;
+}
+
+function isQaGuestId(value) {
+  return /^qa-[a-z0-9-]+$/i.test(cleanCredentialCell(value));
+}
+
+function credentialCompletenessState(row) {
+  const count = [row.guest_id, row.token, row.invite_url]
+    .map(cleanCredentialCell)
+    .filter(Boolean).length;
+  return count === 0 ? "blank" : count === 3 ? "complete" : "partial";
 }
 
 function formatRealGuestId(number) {
@@ -453,13 +476,13 @@ function uniqueStrings(values) { return Array.from(new Set(values)); }
 
 function emptyGuestCredentialAnalysis(errors, warnings, headers, headerIndexes) {
   return {
-    headers: headers, headerIndexes: headerIndexes, records: [], eligibleRows: [], existingTokens: [],
+    headers: headers, headerIndexes: headerIndexes, records: [], qaRows: [], eligibleRows: [], existingTokens: [],
     highestRealGuestNumber: 0, errors: uniqueStrings(errors), warnings: warnings,
     counts: {
       totalRows: 0, alreadyCredentialed: 0, eligible: 0, partialCredentials: 0,
       existingRealGuestIds: 0, invalidPaxLimit: 0, missingGuestName: 0,
       missingGuestType: 0, missingGroupName: 0, duplicateGuestIds: 0,
-      duplicateTokens: 0, duplicateInviteUrls: 0
+      duplicateTokens: 0, duplicateInviteUrls: 0, qaRows: 0, qaPartialCredentials: 0
     }
   };
 }
