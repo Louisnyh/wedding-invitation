@@ -13,6 +13,7 @@ const GUEST_TOKEN_PEPPER_PROPERTY = "GUEST_TOKEN_PEPPER";
 const GUEST_CREDENTIAL_INVITE_ROOT = "https://louisnyh.github.io/wedding-invitation/";
 const GUEST_CREDENTIAL_LOCK_TIMEOUT_MS = 10000;
 const GUEST_TOKEN_RETRY_LIMIT = 20;
+const GUEST_MAX_INVITED_PAX = 300;
 const GUEST_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 const REAL_GUEST_ID_PATTERN = /^guest-(\d+)$/;
 const VALID_CREDENTIALED_INVITATION_STATUSES = [
@@ -97,6 +98,8 @@ function verifyGuestCredentials() {
   const spreadsheet = openGuestCredentialAdminSpreadsheet(properties);
   const dataset = readGuestCredentialDataset(spreadsheet);
   const verification = verifyGuestCredentialDataset(dataset.values);
+  verification.counts.rsvpRows = countGuestCredentialDataRows(spreadsheet, "RSVP");
+  verification.counts.tablesRows = countGuestCredentialDataRows(spreadsheet, "Tables");
   const report = guestCredentialVerificationReport(verification);
   Logger.log(report);
   return report;
@@ -178,6 +181,8 @@ function analyzeGuestCredentialDataset(values) {
   let missingGuestName = 0;
   let missingGuestType = 0;
   let missingGroupName = 0;
+  let totalRealGuests = 0;
+  let totalMaximumInvitedPax = 0;
 
   records.forEach(function (item) {
     const row = item.record;
@@ -215,6 +220,11 @@ function analyzeGuestCredentialDataset(values) {
     if (isQa) {
       qaRows.push({ rowNumber: rowNumber, completeness: credentialCompletenessState(row) });
       return;
+    }
+
+    totalRealGuests += 1;
+    if (!credentialRowRevoked(row) && validCredentialPaxLimit(row.pax_limit)) {
+      totalMaximumInvitedPax += Number(row.pax_limit);
     }
 
     if (!guestName) {
@@ -259,6 +269,13 @@ function analyzeGuestCredentialDataset(values) {
   appendDuplicateErrors(errors, "guest_id", byGuestId);
   appendDuplicateErrors(errors, "token", byToken);
   appendDuplicateErrors(errors, "invite_url", byInviteUrl);
+  if (totalMaximumInvitedPax > GUEST_MAX_INVITED_PAX) {
+    errors.push(
+      "Total maximum invited pax exceeds capacity by " +
+      (totalMaximumInvitedPax - GUEST_MAX_INVITED_PAX) +
+      " (" + totalMaximumInvitedPax + " > " + GUEST_MAX_INVITED_PAX + ")"
+    );
+  }
   Object.keys(byGuestName).forEach(function (name) {
     if (name && byGuestName[name].length > 1) {
       warnings.push("Duplicate guest_name at rows " + byGuestName[name].join(", "));
@@ -289,7 +306,11 @@ function analyzeGuestCredentialDataset(values) {
       duplicateTokens: duplicateReferenceCount(byToken),
       duplicateInviteUrls: duplicateReferenceCount(byInviteUrl),
       qaRows: qaRows.length,
-      qaPartialCredentials: qaRows.filter(function (row) { return row.completeness === "partial"; }).length
+      qaPartialCredentials: qaRows.filter(function (row) { return row.completeness === "partial"; }).length,
+      totalRealGuests: totalRealGuests,
+      totalMaximumInvitedPax: totalMaximumInvitedPax,
+      invitedPaxCapacity: GUEST_MAX_INVITED_PAX,
+      invitedPaxOverCapacity: Math.max(0, totalMaximumInvitedPax - GUEST_MAX_INVITED_PAX)
     }
   };
 }
@@ -329,7 +350,9 @@ function verifyGuestCredentialDataset(values) {
       revokedRealGuests: realRows.filter(function (item) { return credentialRowRevoked(item.record); }).length,
       partialCredentials: analysis.counts.partialCredentials,
       qaGuests: qaRows.length,
-      qaRevoked: qaRows.filter(function (item) { return credentialRowRevoked(item.record); }).length
+      qaRevoked: qaRows.filter(function (item) { return credentialRowRevoked(item.record); }).length,
+      totalMaximumInvitedPax: analysis.counts.totalMaximumInvitedPax,
+      invitedPaxCapacity: analysis.counts.invitedPaxCapacity
     }
   };
 }
@@ -341,6 +364,10 @@ function guestCredentialPreviewReport(plan) {
     "Already credentialed: " + plan.counts.alreadyCredentialed,
     "Eligible for generation: " + plan.counts.eligible,
     "Partial credential rows: " + plan.counts.partialCredentials, "",
+    "Real Guest records: " + plan.counts.totalRealGuests,
+    "Total maximum invited pax: " + plan.counts.totalMaximumInvitedPax,
+    "Invited pax capacity: " + plan.counts.invitedPaxCapacity,
+    "Amount over capacity: " + plan.counts.invitedPaxOverCapacity, "",
     "Existing real guest IDs: " + plan.counts.existingRealGuestIds,
     "Next guest ID: " + plan.nextGuestId,
     "Planned last guest ID: " + (plan.plannedLastGuestId || "none"), "",
@@ -374,7 +401,11 @@ function guestCredentialVerificationReport(verification) {
     "Partial credentials: " + count.partialCredentials, "",
     "QA Guests: " + count.qaGuests,
     "QA revoked: " + count.qaRevoked, "",
-    "RSVP: UNCHANGED / not touched by this function",
+    "Total maximum invited pax: " + count.totalMaximumInvitedPax,
+    "Invited pax capacity: " + count.invitedPaxCapacity, "",
+    "RSVP rows: " + count.rsvpRows,
+    "Tables rows: " + count.tablesRows,
+    "RSVP / Tables: UNCHANGED / not touched by this function",
     "Blocking errors: " + verification.errors.length,
     "Warnings: " + verification.warnings.length,
     "Raw credentials: NOT LOGGED"
@@ -443,6 +474,15 @@ function credentialRowRevoked(row) {
   return ["yes", "true", "1"].includes(value) || status === "revoked";
 }
 
+function countGuestCredentialDataRows(spreadsheet, sheetName) {
+  const sheet = spreadsheet.getSheetByName(sheetName);
+  if (!sheet) throw new Error("Missing required sheet: " + sheetName);
+  const values = sheet.getDataRange().getValues();
+  return values.slice(1).filter(function (row) {
+    return row.some(function (cell) { return cell !== "" && cell !== null && cell !== undefined; });
+  }).length;
+}
+
 function cleanCredentialCell(value) {
   return value === undefined || value === null ? "" : String(value).trim();
 }
@@ -482,7 +522,9 @@ function emptyGuestCredentialAnalysis(errors, warnings, headers, headerIndexes) 
       totalRows: 0, alreadyCredentialed: 0, eligible: 0, partialCredentials: 0,
       existingRealGuestIds: 0, invalidPaxLimit: 0, missingGuestName: 0,
       missingGuestType: 0, missingGroupName: 0, duplicateGuestIds: 0,
-      duplicateTokens: 0, duplicateInviteUrls: 0, qaRows: 0, qaPartialCredentials: 0
+      duplicateTokens: 0, duplicateInviteUrls: 0, qaRows: 0, qaPartialCredentials: 0,
+      totalRealGuests: 0, totalMaximumInvitedPax: 0,
+      invitedPaxCapacity: GUEST_MAX_INVITED_PAX, invitedPaxOverCapacity: 0
     }
   };
 }
