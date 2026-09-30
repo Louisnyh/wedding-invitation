@@ -290,6 +290,36 @@ test('approved Guests headers must exist in their exact schema and order',()=>{
   assert.equal(h.stats.writes.length,0);
 });
 
+test('blank physical columns after the approved schema are ignored safely',()=>{
+  const data=credentialData([eligibleRow()]);
+  data.Guests=data.Guests.map(row=>row.concat(Array(14).fill('')));
+  const h=createHarness({fixtureData:data});
+  const preview=call(h.context,'previewGuestCredentialGeneration');
+  assert.match(preview,/Eligible for generation: 1/);
+  assert.doesNotThrow(()=>call(h.context,'generateGuestCredentials'));
+});
+
+test('known organizer-only columns are preserved and excluded from credential logic',()=>{
+  const data=credentialData([eligibleRow()]);
+  data.Guests[0]=data.Guests[0].concat(['Ready?','Remark']);
+  data.Guests[1]=data.Guests[1].concat(['TRUE','Organizer note']);
+  const h=createHarness({fixtureData:data});
+  const organizerBefore=snapshot(h.data.Guests.map(row=>row.slice(12)));
+  const preview=call(h.context,'previewGuestCredentialGeneration');
+  assert.match(preview,/Eligible for generation: 1/);
+  call(h.context,'generateGuestCredentials');
+  assert.equal(snapshot(h.data.Guests.map(row=>row.slice(12))),organizerBefore);
+});
+
+test('nonblank data after the approved schema blocks generation',()=>{
+  const data=credentialData([eligibleRow()]);
+  data.Guests[0]=data.Guests[0].concat(Array(14).fill(''));
+  data.Guests[1]=data.Guests[1].concat(['unexpected']);
+  const h=createHarness({fixtureData:data});
+  assert.throws(()=>call(h.context,'generateGuestCredentials'),/data beyond the approved 12 columns/);
+  assert.equal(h.stats.writes.length,0);
+});
+
 test('generator functions are not public API actions',()=>{
   const h=createHarness();
   for (const action of ['previewGuestCredentialGeneration','generateGuestCredentials','verifyGuestCredentials']) {

@@ -9,6 +9,7 @@ const GUEST_CREDENTIAL_HEADERS = [
   "guest_id", "token", "guest_name", "invitation_status", "pax_limit", "table_id",
   "revoked", "expires_at", "guest_type", "group_name", "personal_message", "invite_url"
 ];
+const GUEST_CREDENTIAL_ORGANIZER_HEADERS = ["Ready?", "Remark"];
 const GUEST_TOKEN_PEPPER_PROPERTY = "GUEST_TOKEN_PEPPER";
 const GUEST_CREDENTIAL_INVITE_ROOT = "https://louisnyh.github.io/wedding-invitation/";
 const GUEST_CREDENTIAL_LOCK_TIMEOUT_MS = 10000;
@@ -142,7 +143,9 @@ function planGuestCredentialGeneration(values, pepperConfigured) {
 function analyzeGuestCredentialDataset(values) {
   const errors = [];
   const warnings = [];
-  const headers = (values[0] || []).map(function (value) { return String(value || "").trim(); });
+  const rawHeaders = (values[0] || []).map(function (value) { return String(value || "").trim(); });
+  const approvedColumnCount = GUEST_CREDENTIAL_HEADERS.length;
+  const headers = rawHeaders.slice(0, approvedColumnCount);
   const headerIndexes = Object.create(null);
   const duplicateHeaders = duplicateValues(headers.filter(Boolean));
   if (duplicateHeaders.length) errors.push("Duplicate Guests headers: " + duplicateHeaders.join(", "));
@@ -150,8 +153,21 @@ function analyzeGuestCredentialDataset(values) {
     headerIndexes[header] = headers.indexOf(header);
     if (headers[index] !== header) errors.push("Guests headers must exactly match the approved schema and order");
   });
-  if (headers.length !== GUEST_CREDENTIAL_HEADERS.length) {
-    errors.push("Guests headers must contain exactly " + GUEST_CREDENTIAL_HEADERS.length + " columns");
+  if (rawHeaders.length < approvedColumnCount) {
+    errors.push("Guests headers must contain the approved " + approvedColumnCount + " columns");
+  }
+  const organizerHeaders = rawHeaders.slice(approvedColumnCount);
+  const unexpectedTrailingHeaders = organizerHeaders.some(function (header, index) {
+    return header && header !== GUEST_CREDENTIAL_ORGANIZER_HEADERS[index];
+  });
+  const unexpectedTrailingData = values.slice(1).some(function (row) {
+    return row.slice(approvedColumnCount).some(function (cell, index) {
+      if (cell === "" || cell === null || cell === undefined) return false;
+      return organizerHeaders[index] !== GUEST_CREDENTIAL_ORGANIZER_HEADERS[index];
+    });
+  });
+  if (unexpectedTrailingHeaders || unexpectedTrailingData) {
+    errors.push("Guests contains data beyond the approved " + approvedColumnCount + " columns");
   }
 
   // Header errors make row interpretation unsafe; return a deterministic result.
