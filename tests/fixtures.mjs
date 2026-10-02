@@ -1,12 +1,12 @@
 // Synthetic records only. Never copied into dist/.
-export const TOKEN_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-export const TOKEN_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+export const TOKEN_A = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+export const TOKEN_B = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 export function fixtures() {
   return {
     Guests: [
-      ['guest_id','token','guest_name','invitation_status','pax_limit','rsvp_status','pax_count','dietary_notes','special_notes','personal_message','invite_url','table_id','revoked','expires_at'],
-      ['synthetic-a',TOKEN_A,'测试宾客 A','active',3,'pending','','','ORGANIZER_SECRET_A','PERSONAL_SECRET_A','PRIVATE_INVITE_A','SECRET_TABLE_A','',''],
-      ['synthetic-b',TOKEN_B,'测试宾客 B','active',2,'confirmed',2,'OTHER_GUEST_DIET','OTHER_GUEST_NOTES','PERSONAL_SECRET_B','PRIVATE_INVITE_B','SECRET_TABLE_B','','']
+      ['guest_id','token','guest_name','invitation_status','pax_limit','table_id','revoked','expires_at','guest_type','group_name','personal_message','invite_url'],
+      ['guest-0001',TOKEN_A,'测试宾客 A','active',3,'SECRET_TABLE_A','','','QA','Synthetic','PERSONAL_SECRET_A',`https://louisnyh.github.io/wedding-invitation/?token=${TOKEN_A}`],
+      ['guest-0002',TOKEN_B,'测试宾客 B','active',2,'SECRET_TABLE_B','','','QA','Synthetic','PERSONAL_SECRET_B',`https://louisnyh.github.io/wedding-invitation/?token=${TOKEN_B}`]
     ],
     RSVP: [['response_id','request_id','revision','timestamp','guest_id','rsvp_status','pax_count','under_5_child_count','dietary_notes','private_note']],
     Settings: [

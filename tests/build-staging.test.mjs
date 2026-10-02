@@ -86,7 +86,7 @@ test('frontend v2 builds an exact independent allowlist without touching the leg
  assert.match(closingCss,/@media \(max-width: 767px\)[\s\S]*\.closing__photo[\s\S]*height: 64%[\s\S]*object-fit: contain[\s\S]*mask-image:/);
  assert.ok(!/border-radius|box-shadow|scroll-snap|position: sticky/.test(closingCss));
  const rsvpHtml=html.slice(html.indexOf('<section class="rsvp"'),html.indexOf('</section>',html.indexOf('<section class="rsvp"')));
- assert.match(rsvpHtml,/\b08\b[\s\S]*Will You Join Us\?[\s\S]*如果你愿意把这一天留给我们[\s\S]*我会来[\s\S]*See you there\.[\s\S]*还不确定[\s\S]*不好意思！我无法出席/);
+ assert.match(rsvpHtml,/\b08\b[\s\S]*Will You Join Us\?[\s\S]*如果你愿意把这一天留给我们[\s\S]*我会来[\s\S]*I'll be there[\s\S]*还不确定[\s\S]*不好意思！我无法出席/);
  assert.match(rsvpHtml,/type="radio" name="rsvpStatus"[\s\S]*id="rsvp-party-size"[\s\S]*name="childPresence"[\s\S]*id="rsvp-child-count"[\s\S]*type="checkbox" name="dietarySelections"[\s\S]*id="rsvp-unable-note"/);
  const rsvpCss=await readFile(`${dist}/frontend-v2/styles/page-08.css`,'utf8');assert.match(rsvpCss,/background: var\(--color-ivory\)/);assert.ok(!/position: sticky|scroll-snap/.test(rsvpCss));
  const adapter=await readFile(`${dist}/frontend-v2/scripts/rsvp-adapter.js`,'utf8');assert.match(adapter,/createRsvpState[\s\S]*startSaving[\s\S]*finishSaving/);assert.match(adapter,/under5ChildCount/);

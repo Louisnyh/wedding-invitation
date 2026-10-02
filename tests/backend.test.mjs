@@ -7,7 +7,7 @@ const read = h => h.post({action:'invitation',token:TOKEN_A});
 const write = (overrides={}) => ({action:'rsvp',token:TOKEN_A,requestId:'1234567890abcdef1234567890abcdef',status:'attending',partySize:2,under5ChildCount:0,dietaryRequirements:'',privateNote:'',...overrides});
 function noLeaks(response) {
   const wire=JSON.stringify(response);
-  for(const forbidden of [TOKEN_A,TOKEN_B,'synthetic-a','synthetic-b','ORGANIZER_SECRET','OTHER_GUEST','PERSONAL_SECRET','PRIVATE_INVITE','SETTINGS_SECRET','FORBIDDEN_MESSAGE','FORBIDDEN_MENU','SECRET_TABLE']) assert.ok(!wire.includes(forbidden),forbidden);
+  for(const forbidden of [TOKEN_A,TOKEN_B,'guest-0001','guest-0002','ORGANIZER_SECRET','OTHER_GUEST','PERSONAL_SECRET','PRIVATE_INVITE','SETTINGS_SECRET','FORBIDDEN_MESSAGE','FORBIDDEN_MENU','SECRET_TABLE']) assert.ok(!wire.includes(forbidden),forbidden);
   validateResponse(response);
 }
 test('ready response uses exact allowlists and reads no group/message/menu/table data before release',()=>{
@@ -51,8 +51,8 @@ test('expiry boundary rejects writes and unknown tokens never read other collect
   h.stats.reads=[];assert.equal(h.post({action:'invitation',token:'cccccccccccccccc'}).state,'invalid_invitation');assert.deepEqual(h.stats.reads,['Guests']);
 });
 test('duplicate tokens and duplicate internal identities fail closed',()=>{
-  const h=createHarness();h.setCell('Guests',2,'guest_id','synthetic-a');assert.equal(read(h).state,'invalid_invitation');
-  h.setCell('Guests',2,'guest_id','synthetic-b');h.setCell('Guests',2,'token',TOKEN_A);assert.equal(read(h).state,'invalid_invitation');
+  const h=createHarness();h.setCell('Guests',2,'guest_id','guest-0001');assert.equal(read(h).state,'invalid_invitation');
+  h.setCell('Guests',2,'guest_id','guest-0002');h.setCell('Guests',2,'token',TOKEN_A);assert.equal(read(h).state,'invalid_invitation');
 });
 test('revocation is rechecked after acquiring the write lock',()=>{
   const h=createHarness();h.control.onLock=()=>h.setCell('Guests',1,'invitation_status','revoked');
@@ -62,13 +62,13 @@ for(const count of ['',0,-1,2.5,'2.5','2people','1e0',' 2','02','+2',true,null,{
   const h=createHarness();const r=h.post(write({partySize:count}));assert.equal(r.state,'validation_error');assert.ok(r.errors.partySize);assert.equal(h.stats.writes.length,0);
 });
 test('all RSVP options use authorized explicit writes; current own form prefills only its own fields',()=>{
-  const h=createHarness();for(const [i,status] of ['attending','unsure','unable'].entries()) {
+  const h=createHarness();const guestsBefore=JSON.stringify(h.data.Guests);for(const [i,status] of ['attending','unsure','unable'].entries()) {
     const r=h.post(write({status,partySize:status==='attending'?3:null,requestId:String(i+1).repeat(32),privateNote:'  A private note\n'}));
     assert.equal(r.state,'saved');assert.equal(r.rsvp.status,status);assert.equal(r.rsvp.privateNote,'  A private note\n');noLeaks(r);
     assert.equal(r.rsvp.under5ChildCount,status==='attending'?0:null);
     assert.deepEqual(read(h).rsvp,r.rsvp);
   }
-  assert.equal(h.stats.writes.length,3);assert.equal(h.data.Guests[1][5],'pending');
+  assert.equal(h.stats.writes.length,3);assert.equal(JSON.stringify(h.data.Guests),guestsBefore);
 });
 for(const value of ['=1+1','+1','-1','@SUM(A1:A2)',"'literal",'\t=1','line one\n=1','你好 💜']) test(`literal Sheet text round-trip ${JSON.stringify(value)}`,()=>{
   const h=createHarness();const r=h.post(write({dietaryRequirements:value,privateNote:value}));assert.equal(r.state,'saved');
@@ -79,7 +79,7 @@ test('long/control-character text rejected before write',()=>{
   assert.equal(h.post(write({dietaryRequirements:'bad\u0000'})).state,'validation_error');assert.equal(h.stats.writes.length,0);
 });
 test('guest ID injection and obsolete action rejected',()=>{
-  const h=createHarness();assert.equal(h.post(write({guest_id:'synthetic-b'})).state,'validation_error');
+  const h=createHarness();assert.equal(h.post(write({guest_id:'guest-0002'})).state,'validation_error');
   assert.equal(h.post({action:'memory',token:TOKEN_A,message:'test'}).state,'invalid_invitation');assert.equal(h.stats.writes.length,0);
 });
 test('lost acknowledgement is retryable with exactly one append',()=>{
@@ -99,7 +99,7 @@ for(const status of ['unsure','unable']) test(`${status} normalizes under-5 chil
   assert.equal(r.state,'saved');assert.equal(r.rsvp.under5ChildCount,null);assert.equal(h.stats.writes[0].row[7],'');
 });
 test('legacy blank under-5 child count remains unknown until explicitly saved',()=>{
-  const h=createHarness();h.data.RSVP.push(['legacy','a'.repeat(32),1,'2026-10-01T00:00:00Z','synthetic-a','confirmed',2,'','legacy diet','legacy note']);
+  const h=createHarness();h.data.RSVP.push(['legacy','a'.repeat(32),1,'2026-10-01T00:00:00Z','guest-0001','confirmed',2,'','legacy diet','legacy note']);
   const legacy=read(h).rsvp;assert.equal(legacy.under5ChildCount,null);
   const saved=h.post(write({requestId:'b'.repeat(32),partySize:2,under5ChildCount:1,dietaryRequirements:'legacy diet',privateNote:'legacy note'}));
   assert.equal(saved.state,'saved');assert.equal(saved.rsvp.under5ChildCount,1);assert.equal(h.stats.writes[0].row[7],1);
@@ -122,8 +122,8 @@ test('other guest RSVP never leaks into current response',()=>{
   const h=createHarness();h.post(write({token:TOKEN_B,privateNote:'OTHER_GUEST_PRIVATE'}));const r=read(h);assert.equal(r.rsvp.status,null);noLeaks(r);
 });
 test('legacy history uses timestamp rather than row order; organizer notes never prefilled',()=>{
-  const h=createHarness();h.data.RSVP.push(['old2','','','2026-10-02T00:00:00Z','synthetic-a','maybe','','','','']);
-  h.data.RSVP.push(['old1','','','2026-10-01T00:00:00Z','synthetic-a','confirmed',2,'','legacy diet','']);assert.equal(read(h).rsvp.status,'unsure');
+  const h=createHarness();h.data.RSVP.push(['old2','','','2026-10-02T00:00:00Z','guest-0001','maybe','','','','']);
+  h.data.RSVP.push(['old1','','','2026-10-01T00:00:00Z','guest-0001','confirmed',2,'','legacy diet','']);assert.equal(read(h).rsvp.status,'unsure');
 });
 test('write failure and lock timeout never claim saved',()=>{
   const h=createHarness();h.control.failWrite=true;assert.equal(h.post(write()).state,'temporary_error');assert.equal(h.stats.locked,false);

@@ -25,6 +25,7 @@ test('canonical reception, ceremony and dinner times are approved', () => {
 
 test('canonical venue content retains the approved values without invented links', () => {
   assert.equal(WEDDING_CONTENT.venue.venueName, '億家主题宴会厅 · Hall E 露天草坪');
+  assert.equal(WEDDING_CONTENT.venue.venueNameEn, 'YIJIA Theme Banquet');
   assert.equal(WEDDING_CONTENT.venue.dressCode, 'Smart Casual');
   assert.equal(WEDDING_CONTENT.venue.googleMapsUrl, 'https://maps.app.goo.gl/tDacdw6Jo4zL5B4U6');
   assert.equal(WEDDING_CONTENT.venue.venueAddress, '');
@@ -42,7 +43,7 @@ test('Page 06 has exactly the four approved canonical timeline entries', () => {
 
 test('Page 08 attending success uses the canonical wedding date', () => {
   assert.equal(SUCCESS_COPY.attending.date, WEDDING_CONTENT.event.dateDisplay);
-  assert.equal(SUCCESS_COPY.attending.copy, '那天见。');
+  assert.equal(SUCCESS_COPY.attending.copy, '那天见。\nSee you there.');
   assert.equal(SUCCESS_COPY.unsure.date, '');
   assert.equal(SUCCESS_COPY.unable.date, '');
 });
@@ -65,7 +66,7 @@ test('Page 01 countdown imports the canonical target', async () => {
 test('Page 05 and Page 06 render all mutable event content from the canonical module', async () => {
   const html = await readSource('index.html');
   const renderer = await readSource('scripts/wedding-content-renderer.js');
-  for (const field of ['schedule.receptionTime','schedule.dinnerTime','venue.venueName','venue.dressCode']) {
+  for (const field of ['schedule.receptionTime','schedule.dinnerTime','venue.venueName','venue.venueNameEn','venue.dressCode']) {
     assert.ok(html.includes(`data-wedding-field="${field}"`));
   }
   assert.equal((html.match(/data-wedding-timeline/g) || []).length, 4);

@@ -140,21 +140,19 @@ test('blank optional organizer metadata produces warnings but remains eligible',
   assert.equal(h.data.Guests[1][10],'');
 });
 
-test('invited pax capacity allows 300 and blocks 301 or more before writes',()=>{
+test('total invited pax is informational and never blocks generation above 300',()=>{
   const atCapacity=Array.from({length:15},(_,index)=>eligibleRow(`Guest ${index+1}`,20));
   const allowed=createHarness({fixtureData:credentialData(atCapacity)});
   const preview=call(allowed.context,'previewGuestCredentialGeneration');
-  assert.match(preview,/Total maximum invited pax: 300/);
-  assert.match(preview,/Amount over capacity: 0/);
+  assert.match(preview,/Total maximum invited pax \(informational only\): 300/);
   assert.doesNotThrow(()=>call(allowed.context,'generateGuestCredentials'));
 
   const overCapacity=[...atCapacity,eligibleRow('Guest 16',1)];
-  const blocked=createHarness({fixtureData:credentialData(overCapacity)});
-  const blockedPreview=call(blocked.context,'previewGuestCredentialGeneration');
-  assert.match(blockedPreview,/Total maximum invited pax: 301/);
-  assert.match(blockedPreview,/Amount over capacity: 1/);
-  assert.throws(()=>call(blocked.context,'generateGuestCredentials'),/exceeds capacity by 1/);
-  assert.equal(blocked.stats.writes.length,0);
+  const over=createHarness({fixtureData:credentialData(overCapacity)});
+  const overPreview=call(over.context,'previewGuestCredentialGeneration');
+  assert.match(overPreview,/Total maximum invited pax \(informational only\): 301/);
+  assert.doesNotThrow(()=>call(over.context,'generateGuestCredentials'));
+  assert.equal(over.data.Guests.slice(1).filter(row=>row[0]).length,16);
 });
 
 test('capacity excludes QA and revoked real guests',()=>{
@@ -162,7 +160,7 @@ test('capacity excludes QA and revoked real guests',()=>{
   const h=createHarness({fixtureData:credentialData([qaRow(),revoked,eligibleRow('Active',3)])});
   const preview=call(h.context,'previewGuestCredentialGeneration');
   assert.match(preview,/Real Guest records: 2/);
-  assert.match(preview,/Total maximum invited pax: 3/);
+  assert.match(preview,/Total maximum invited pax \(informational only\): 3/);
 });
 
 test('malformed non-QA credentialed guest ID blocks generation',()=>{
@@ -265,7 +263,7 @@ test('verification returns safe aggregate counts without raw credentials',()=>{
   assert.match(report,/2 canonical/);
   assert.match(report,/QA Guests: 1/);
   assert.match(report,/QA revoked: 1/);
-  assert.match(report,/Total maximum invited pax: 4/);
+  assert.match(report,/Total maximum invited pax \(informational only\): 4/);
   assert.match(report,/RSVP rows: 1/);
   assert.match(report,/Tables rows: 0/);
   assert.match(report,/RSVP \/ Tables: UNCHANGED/);

@@ -16,7 +16,7 @@ async function startOpeningPreview(port) {
     scenario = value;
     harness.control.failRead = false; harness.control.failWrite = false; harness.control.loseWriteResponse = false;
     harness.setCell('Guests',1,'invitation_status','active');
-    if (value === 'legacy_attending') harness.data.RSVP.push(['legacy-preview','c'.repeat(32),1,'2026-10-01T00:00:00Z','synthetic-a','confirmed',2,'','','']);
+    if (value === 'legacy_attending') harness.data.RSVP.push(['legacy-preview','c'.repeat(32),1,'2026-10-01T00:00:00Z','guest-0001','confirmed',2,'','','']);
     if (value === 'temporary_error') harness.control.failRead = true;
     if (value === 'invalid') harness.setCell('Guests',1,'invitation_status','revoked');
     if (value === 'write_error') harness.control.failWrite = true;

@@ -138,7 +138,7 @@ test('privateNote field is exposed only by the unable controller state',async()=
 test('Page 08 success copy remains distinct and never echoes privateNote',()=>{
   assert.deepEqual(Object.keys(SUCCESS_COPY),['attending','unsure','unable']);
   assert.equal(SUCCESS_COPY.attending.date,'23 · 1 · 2027');
-  assert.equal(SUCCESS_COPY.unable.copy,'虽然这次没机会和你一起庆祝，希望之后还能找个时间一起吃个饭。');
+  assert.match(SUCCESS_COPY.unable.copy,/^虽然这次没机会和你一起庆祝，希望之后还能找个时间一起吃个饭。\nWe’ll miss you/);
   assert.equal(JSON.stringify(SUCCESS_COPY).includes('虽然这次不能一起庆祝，心意我们收到了。'),false);
   assert.notEqual(SUCCESS_COPY.attending.copy,SUCCESS_COPY.unsure.copy);
   assert.notEqual(SUCCESS_COPY.unsure.copy,SUCCESS_COPY.unable.copy);
