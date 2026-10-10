@@ -43,8 +43,8 @@ test('r7 executable fixes match the prepared source and r6 remains immutable',as
   assert.doesNotThrow(()=>execFileSync('git',['diff','--quiet','origin/main','--','release-v2-20261002-r6'],{cwd:root}));
 });
 
-test('public root remains on r6 before deployment approval',async()=>{
+test('public root serves the approved r7 release',async()=>{
   const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
-  assert.match(html,/<base href="\.\/release-v2-20261002-r6\/frontend-v2\/" \/>/);
-  assert.doesNotMatch(html,/release-v2-20261010-r7\/frontend-v2/);
+  assert.match(html,/<base href="\.\/release-v2-20261010-r7\/frontend-v2\/" \/>/);
+  assert.doesNotMatch(html,/<base href="\.\/release-v2-20261002-r6\/frontend-v2\/" \/>/);
 });
