@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {readFile,stat} from 'node:fs/promises';
 import {openingFiles,renderShareMetadata} from '../scripts/build.mjs';
-import {initWeddingMusic,WEDDING_MUSIC_SWIPE_THRESHOLD,WEDDING_MUSIC_VOLUME} from '../frontend-v2/scripts/wedding-music.js';
+import {initWeddingMusic,WEDDING_MUSIC_MAX_SWIPE_ATTEMPTS,WEDDING_MUSIC_SWIPE_THRESHOLD,WEDDING_MUSIC_VOLUME} from '../frontend-v2/scripts/wedding-music.js';
 
 const root = new URL('../',import.meta.url);
 const html = await readFile(new URL('../frontend-v2/index.html',import.meta.url),'utf8');
@@ -31,10 +31,16 @@ class FakeAudio extends EventTarget {
   volume = 1;
   playCalls = 0;
   pauseCalls = 0;
-  rejectPlay = false;
+  playOutcomes = [];
+  constructor(playOutcomes=[]) {
+    super();
+    this.playOutcomes=[...playOutcomes];
+  }
   async play() {
     this.playCalls += 1;
-    if (this.rejectPlay) throw new Error('blocked');
+    const outcome=this.playOutcomes.shift();
+    if(typeof outcome==='function') return outcome(this);
+    if(outcome instanceof Error) throw outcome;
     this.paused = false;
     this.ended = false;
     this.dispatchEvent(new Event('play'));
@@ -46,8 +52,14 @@ class FakeAudio extends EventTarget {
   }
 }
 
-function setup() {
-  const audio = new FakeAudio();
+function playError(name='NotAllowedError') {
+  const error=new Error(name);
+  error.name=name;
+  return error;
+}
+
+function setup({playOutcomes=[]}={}) {
+  const audio = new FakeAudio(playOutcomes);
   const button = new FakeButton();
   const documentTarget = new EventTarget();
   const windowTarget = new EventTarget();
@@ -96,219 +108,194 @@ test('music control is a real button with a paused initial state',()=>{
   assert.match(html,/<button class="music-control" id="music-control" type="button" aria-label="Play background music" aria-pressed="false">/);
 });
 
-test('controller initializes paused UI and volume 0.35',()=>{
-  const {audio,button} = setup();
+test('controller starts paused, keeps volume 0.35, and makes one explicit initialization attempt',async()=>{
+  let rejectInitial;
+  const pending=new Promise((resolve,reject)=>{rejectInitial=reject;});
+  const {audio,button,controller}=setup({playOutcomes:[()=>pending]});
   assert.equal(WEDDING_MUSIC_VOLUME,0.35);
   assert.equal(audio.volume,0.35);
-  assert.equal(button.getAttribute('aria-pressed'),'false');
-  assert.equal(button.getAttribute('aria-label'),'Play background music');
-  assert.equal(button.classList.contains('is-playing'),false);
-  assert.deepEqual(setup().controller.getState(),{autoStartArmed:true,explicitDecision:false});
-});
-
-test('qualifying upward touch swipe calls play directly from touchend',async()=>{
-  const {audio,documentTarget} = setup();
-  let dispatching = false;
-  let calledDuringGesture = false;
-  audio.play = () => {
-    calledDuringGesture = dispatching;
-    audio.playCalls += 1;
-    audio.paused = false;
-    audio.dispatchEvent(new Event('play'));
-    return Promise.resolve();
-  };
-  documentTarget.dispatchEvent(touchEvent('touchstart',200));
-  dispatching = true;
-  documentTarget.dispatchEvent(touchEvent('touchend',200-WEDDING_MUSIC_SWIPE_THRESHOLD,{touches:false}));
-  dispatching = false;
-  await flush();
-  assert.equal(audio.playCalls,1);
-  assert.equal(calledDuringGesture,true);
-});
-
-test('opening and referrer source never change first-swipe behavior',async()=>{
-  for(const referrer of [
-    '',
-    'https://web.whatsapp.com/',
-    'https://t.me/',
-    'https://www.messenger.com/',
-    'https://www.google.com/'
-  ]) {
-    const instance=setup();
-    Object.defineProperty(instance.documentTarget,'referrer',{value:referrer});
-    swipe(instance.documentTarget,200,100);
-    await flush();
-    assert.equal(instance.audio.playCalls,1,referrer);
-  }
-});
-
-test('music startup contains no source or user-agent detection',()=>{
-  assert.doesNotMatch(script,/whatsapp|telegram|messenger|userAgent|navigator\.userAgent|document\.referrer|location\.(?:href|search|host)/i);
-});
-
-test('touch completion follows the same finger that began the swipe',async()=>{
-  const {audio,documentTarget,controller}=setup();
-  documentTarget.dispatchEvent(touchEvent('touchstart',200,{identifier:7}));
-  documentTarget.dispatchEvent(touchEvent('touchend',100,{touches:false,identifier:8}));
-  await flush();
-  assert.equal(audio.playCalls,0);
-  assert.equal(controller.getState().autoStartArmed,true);
-  swipe(documentTarget,200,100);
-  await flush();
-  assert.equal(audio.playCalls,1);
-});
-
-test('touch cancellation preserves scrolling and allows the next genuine swipe',async()=>{
-  const {audio,documentTarget,controller}=setup();
-  documentTarget.dispatchEvent(touchEvent('touchstart',200));
-  documentTarget.dispatchEvent(new Event('touchcancel'));
-  await flush();
-  assert.equal(audio.playCalls,0);
-  assert.equal(controller.getState().autoStartArmed,true);
-  swipe(documentTarget,200,100);
-  await flush();
-  assert.equal(audio.playCalls,1);
-});
-
-test('movement below the swipe threshold does not start music',async()=>{
-  const {audio,documentTarget,controller} = setup();
-  swipe(documentTarget,200,200-WEDDING_MUSIC_SWIPE_THRESHOLD+1);
-  await flush();
-  assert.equal(audio.playCalls,0);
-  assert.equal(controller.getState().autoStartArmed,true);
-});
-
-test('opposite-direction touch swipe does not start music',async()=>{
-  const {audio,documentTarget,controller} = setup();
-  swipe(documentTarget,100,150);
-  await flush();
-  assert.equal(audio.playCalls,0);
-  assert.equal(controller.getState().autoStartArmed,true);
-});
-
-test('scroll event alone never starts music',()=>{
-  const {audio,documentTarget} = setup();
-  documentTarget.dispatchEvent(new Event('scroll'));
-  assert.equal(audio.playCalls,0);
-});
-
-test('desktop wheel event never starts music',()=>{
-  const {audio,documentTarget} = setup();
-  documentTarget.dispatchEvent(new Event('wheel'));
-  assert.equal(audio.playCalls,0);
-});
-
-test('manual Play disables swipe auto-start',async()=>{
-  const {audio,button,documentTarget,controller} = setup();
-  button.dispatchEvent(new Event('click'));
-  await flush();
-  assert.deepEqual(controller.getState(),{autoStartArmed:false,explicitDecision:true});
-  swipe(documentTarget,200,100);
-  await flush();
-  assert.equal(audio.playCalls,1);
-});
-
-test('manual Pause locks out future swipe playback',async()=>{
-  const {audio,button,documentTarget,controller} = setup();
-  swipe(documentTarget,200,100);
-  await flush();
-  button.dispatchEvent(new Event('click'));
-  await flush();
-  assert.equal(audio.pauseCalls,1);
-  assert.deepEqual(controller.getState(),{autoStartArmed:false,explicitDecision:true});
-  swipe(documentTarget,200,100);
-  documentTarget.dispatchEvent(new Event('scroll'));
-  await flush();
-  assert.equal(audio.playCalls,1);
   assert.equal(audio.paused,true);
+  assert.equal(audio.playCalls,1);
+  assert.equal(button.getAttribute('aria-pressed'),'false');
+  assert.deepEqual(controller.getState(),{autoStartArmed:false,explicitDecision:false,autoplayPending:true,swipeAttemptPending:false,swipeAttempts:0});
+  rejectInitial(playError());
+  await controller.initialAttempt;
+  assert.equal(audio.playCalls,1);
 });
 
-test('successful swipe playback updates the normal playing UI',async()=>{
-  const {audio,button,documentTarget,controller} = setup();
-  swipe(documentTarget,200,100);
-  await flush();
+test('successful page-load autoplay synchronizes UI and disables swipe fallback',async()=>{
+  const {audio,button,documentTarget,controller}=setup();
+  assert.equal(await controller.initialAttempt,true);
   assert.equal(button.getAttribute('aria-pressed'),'true');
   assert.equal(button.getAttribute('aria-label'),'Pause background music');
-  assert.deepEqual(controller.getState(),{autoStartArmed:false,explicitDecision:false});
-});
-
-test('rejected swipe playback is safe and is not retried',async()=>{
-  const {audio,button,documentTarget,controller} = setup();
-  audio.rejectPlay = true;
-  swipe(documentTarget,200,100);
-  await flush();
-  assert.equal(audio.playCalls,1);
-  assert.equal(button.getAttribute('aria-pressed'),'false');
   assert.equal(controller.getState().autoStartArmed,false);
   swipe(documentTarget,200,100);
   await flush();
   assert.equal(audio.playCalls,1);
 });
 
-test('swipe auto-start makes only one qualifying attempt',async()=>{
-  const {audio,documentTarget} = setup();
-  swipe(documentTarget,200,100);
-  await flush();
-  swipe(documentTarget,200,100);
-  await flush();
-  assert.equal(audio.playCalls,1);
-});
-
-test('fresh controller initialization re-arms swipe auto-start',async()=>{
-  const first = setup();
-  swipe(first.documentTarget,200,100);
-  await flush();
-  assert.equal(first.controller.getState().autoStartArmed,false);
-  const reloaded = setup();
-  assert.deepEqual(reloaded.controller.getState(),{autoStartArmed:true,explicitDecision:false});
-  swipe(reloaded.documentTarget,200,100);
-  await flush();
-  assert.equal(reloaded.audio.playCalls,1);
-});
-
-test('play invokes audio.play and updates only after playback succeeds',async()=>{
-  const {audio,button,controller} = setup();
-  let resolvePlay;
-  audio.play = () => {
-    audio.playCalls += 1;
-    return new Promise(resolve => { resolvePlay = () => { audio.paused=false; resolve(); }; });
-  };
-  const pending = controller.togglePlayback();
-  assert.equal(audio.playCalls,1);
+test('rejected page-load autoplay stays paused and arms swipe fallback without consuming a retry',async()=>{
+  const {audio,button,controller}=setup({playOutcomes:[playError('NotAllowedError')]});
+  assert.equal(await controller.initialAttempt,false);
+  assert.equal(audio.paused,true);
   assert.equal(button.getAttribute('aria-pressed'),'false');
-  resolvePlay();
+  assert.deepEqual(controller.getState(),{autoStartArmed:true,explicitDecision:false,autoplayPending:false,swipeAttemptPending:false,swipeAttempts:0});
+});
+
+test('qualifying upward touch swipe calls play directly from touchend',async()=>{
+  const instance=setup({playOutcomes:[playError()]});
+  await instance.controller.initialAttempt;
+  let dispatching=false;
+  let calledDuringGesture=false;
+  instance.audio.play=()=>{
+    calledDuringGesture=dispatching;
+    instance.audio.playCalls+=1;
+    instance.audio.paused=false;
+    instance.audio.dispatchEvent(new Event('play'));
+    return Promise.resolve();
+  };
+  instance.documentTarget.dispatchEvent(touchEvent('touchstart',200));
+  dispatching=true;
+  instance.documentTarget.dispatchEvent(touchEvent('touchend',200-WEDDING_MUSIC_SWIPE_THRESHOLD,{touches:false}));
+  dispatching=false;
+  await flush();
+  assert.equal(instance.audio.playCalls,2);
+  assert.equal(calledDuringGesture,true);
+});
+
+test('successful first swipe disables further automatic attempts',async()=>{
+  const {audio,documentTarget,controller}=setup({playOutcomes:[playError(),undefined]});
+  await controller.initialAttempt;
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,2);
+  assert.equal(controller.getState().autoStartArmed,false);
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,2);
+});
+
+test('rejected first and second swipes remain armed and retry',async()=>{
+  const {audio,documentTarget,controller}=setup({playOutcomes:[playError(),playError(),playError(),undefined]});
+  await controller.initialAttempt;
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,2);
+  assert.equal(controller.getState().swipeAttempts,1);
+  assert.equal(controller.getState().autoStartArmed,true);
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,3);
+  assert.equal(controller.getState().swipeAttempts,2);
+  assert.equal(controller.getState().autoStartArmed,true);
+});
+
+test('third rejected swipe exhausts retries and a fourth swipe makes no attempt',async()=>{
+  assert.equal(WEDDING_MUSIC_MAX_SWIPE_ATTEMPTS,3);
+  const errors=[playError(),playError(),playError(),playError()];
+  const {audio,documentTarget,controller}=setup({playOutcomes:errors});
+  await controller.initialAttempt;
+  for(let attempt=1;attempt<=3;attempt+=1){swipe(documentTarget,200,100);await flush();}
+  assert.equal(audio.playCalls,4);
+  assert.equal(controller.getState().swipeAttempts,3);
+  assert.equal(controller.getState().autoStartArmed,false);
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,4);
+});
+
+test('short, downward, cancelled, and wrong-finger gestures consume no retry',async()=>{
+  const {audio,documentTarget,controller}=setup({playOutcomes:[playError(),undefined]});
+  await controller.initialAttempt;
+  swipe(documentTarget,200,200-WEDDING_MUSIC_SWIPE_THRESHOLD+1);
+  swipe(documentTarget,100,150);
+  documentTarget.dispatchEvent(touchEvent('touchstart',200));
+  documentTarget.dispatchEvent(new Event('touchcancel'));
+  documentTarget.dispatchEvent(touchEvent('touchstart',200,{identifier:7}));
+  documentTarget.dispatchEvent(touchEvent('touchend',100,{touches:false,identifier:8}));
+  await flush();
+  assert.equal(audio.playCalls,1);
+  assert.equal(controller.getState().swipeAttempts,0);
+  assert.equal(controller.getState().autoStartArmed,true);
+});
+
+test('opening and referrer source never change fallback behavior',async()=>{
+  for(const referrer of ['', 'https://web.whatsapp.com/','https://t.me/','https://www.messenger.com/','https://www.google.com/']) {
+    const instance=setup({playOutcomes:[playError(),undefined]});
+    Object.defineProperty(instance.documentTarget,'referrer',{value:referrer});
+    await instance.controller.initialAttempt;
+    swipe(instance.documentTarget,200,100);
+    await flush();
+    assert.equal(instance.audio.playCalls,2,referrer);
+  }
+});
+
+test('music startup contains no source detection or forbidden retry mechanism',()=>{
+  assert.doesNotMatch(script,/whatsapp|telegram|messenger|userAgent|navigator\.userAgent|document\.referrer|location\.(?:href|search|host)/i);
+  assert.doesNotMatch(script,/setTimeout|requestAnimationFrame|IntersectionObserver|\.dispatchEvent\(new MouseEvent|\.click\(\)/);
+});
+
+test('scroll and desktop wheel events never trigger playback',async()=>{
+  const {audio,documentTarget,controller}=setup({playOutcomes:[playError()]});
+  await controller.initialAttempt;
+  documentTarget.dispatchEvent(new Event('scroll'));
+  documentTarget.dispatchEvent(new Event('wheel'));
+  assert.equal(audio.playCalls,1);
+  assert.equal(controller.getState().swipeAttempts,0);
+});
+
+test('manual Play disables all automatic behavior',async()=>{
+  const {audio,button,documentTarget,controller}=setup({playOutcomes:[playError(),undefined]});
+  await controller.initialAttempt;
+  button.dispatchEvent(new Event('click'));
+  await flush();
+  assert.equal(controller.getState().explicitDecision,true);
+  assert.equal(controller.getState().autoStartArmed,false);
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,2);
+});
+
+test('manual Pause disables automatic behavior and later swipes never restart',async()=>{
+  const {audio,button,documentTarget,controller}=setup();
+  await controller.initialAttempt;
+  button.dispatchEvent(new Event('click'));
+  await flush();
+  assert.equal(audio.pauseCalls,1);
+  assert.equal(audio.paused,true);
+  assert.equal(controller.getState().explicitDecision,true);
+  assert.equal(controller.getState().autoStartArmed,false);
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,1);
+  assert.equal(audio.paused,true);
+});
+
+test('manual play updates only after its playback promise succeeds',async()=>{
+  let resolveManual;
+  const manualPending=new Promise(resolve=>{resolveManual=resolve;});
+  const {audio,button,controller}=setup({playOutcomes:[playError(),instance=>manualPending.then(()=>{instance.paused=false;instance.dispatchEvent(new Event('play'));})]});
+  await controller.initialAttempt;
+  const pending=controller.togglePlayback();
+  assert.equal(audio.playCalls,2);
+  assert.equal(button.getAttribute('aria-pressed'),'false');
+  resolveManual();
   await pending;
   assert.equal(button.getAttribute('aria-pressed'),'true');
-  assert.equal(button.getAttribute('aria-label'),'Pause background music');
 });
 
-test('clicking the control starts playback',async()=>{
-  const {audio,button} = setup();
-  button.dispatchEvent(new Event('click'));
-  await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(audio.playCalls,1);
-  assert.equal(button.getAttribute('aria-pressed'),'true');
-});
-
-test('a rejected play promise is handled and leaves paused UI',async()=>{
-  const {audio,button,controller} = setup();
-  audio.rejectPlay = true;
+test('rejected manual play is silent and leaves paused UI',async()=>{
+  const {audio,button,controller}=setup({playOutcomes:[playError(),playError('AbortError')]});
+  await controller.initialAttempt;
   await assert.doesNotReject(controller.togglePlayback());
+  assert.equal(audio.playCalls,2);
   assert.equal(button.getAttribute('aria-pressed'),'false');
   assert.equal(button.getAttribute('aria-label'),'Play background music');
 });
 
-test('clicking while playing pauses real audio and UI',async()=>{
-  const {audio,button,controller} = setup();
-  await controller.togglePlayback();
-  await controller.togglePlayback();
-  assert.equal(audio.pauseCalls,1);
-  assert.equal(button.getAttribute('aria-pressed'),'false');
-  assert.equal(button.classList.contains('is-playing'),false);
-});
-
-test('play pause and ended events synchronize UI',()=>{
-  const {audio,button} = setup();
+test('play pause and ended events synchronize UI',async()=>{
+  const {audio,button,controller} = setup({playOutcomes:[playError()]});
+  await controller.initialAttempt;
   audio.paused=false;
   audio.dispatchEvent(new Event('play'));
   assert.equal(button.getAttribute('aria-pressed'),'true');
@@ -318,14 +305,16 @@ test('play pause and ended events synchronize UI',()=>{
   assert.equal(button.getAttribute('aria-pressed'),'false');
 });
 
-test('audio errors do not throw or mark playback active',()=>{
-  const {audio,button} = setup();
+test('audio errors do not throw or mark playback active',async()=>{
+  const {audio,button,controller} = setup({playOutcomes:[playError('NotSupportedError')]});
+  await controller.initialAttempt;
   assert.doesNotThrow(()=>audio.dispatchEvent(new Event('error')));
   assert.equal(button.getAttribute('aria-pressed'),'false');
 });
 
-test('visibility changes only synchronize and never pause audio',()=>{
-  const {audio,documentTarget} = setup();
+test('visibility changes only synchronize and never pause audio',async()=>{
+  const {audio,documentTarget,controller} = setup();
+  await controller.initialAttempt;
   audio.paused=false;
   documentTarget.dispatchEvent(new Event('visibilitychange'));
   assert.equal(audio.pauseCalls,0);

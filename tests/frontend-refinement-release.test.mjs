@@ -31,15 +31,12 @@ test('r7 preserves the approved endpoint without embedding a guest credential',a
   assert.doesNotMatch(config,/[?&]token=|[a-f0-9]{64}/);
 });
 
-test('r7 executable fixes match the prepared source and r6 remains immutable',async()=>{
-  for(const path of ['frontend-v2/index.html','frontend-v2/scripts/wedding-music.js']) {
-    const release=await readFile(new URL(path,releaseRoot),'utf8');
-    const source=await readFile(new URL(path,sourceRoot),'utf8');
-    if(path.endsWith('index.html')) {
-      const body=value=>value.slice(value.indexOf('<body>'));
-      assert.equal(body(release),body(source),path);
-    } else assert.equal(release,source,path);
-  }
+test('r7 remains immutable after the next music refinement',async()=>{
+  const release=await readFile(new URL('frontend-v2/index.html',releaseRoot),'utf8');
+  const source=await readFile(new URL('frontend-v2/index.html',sourceRoot),'utf8');
+  const body=value=>value.slice(value.indexOf('<body>'));
+  assert.equal(body(release),body(source),'frontend-v2/index.html');
+  assert.doesNotThrow(()=>execFileSync('git',['diff','--quiet','origin/main','--','release-v2-20261010-r7'],{cwd:root}));
   assert.doesNotThrow(()=>execFileSync('git',['diff','--quiet','origin/main','--','release-v2-20261002-r6'],{cwd:root}));
 });
 

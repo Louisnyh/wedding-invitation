@@ -1,5 +1,6 @@
 export const WEDDING_MUSIC_VOLUME = 0.35;
 export const WEDDING_MUSIC_SWIPE_THRESHOLD = 24;
+export const WEDDING_MUSIC_MAX_SWIPE_ATTEMPTS = 3;
 
 const labels = {
   paused: 'Play background music',
@@ -16,8 +17,11 @@ export function initWeddingMusic({
 
   let touchStartY = null;
   let touchIdentifier = null;
-  let autoStartArmed = true;
+  let autoStartArmed = false;
   let explicitDecision = false;
+  let autoplayPending = true;
+  let swipeAttemptPending = false;
+  let swipeAttempts = 0;
   const touchListenerOptions = {passive:true,capture:true};
 
   const clearTouch = () => {
@@ -75,7 +79,7 @@ export function initWeddingMusic({
   };
 
   function handleTouchStart(event) {
-    if (!autoStartArmed || explicitDecision || event.touches?.length !== 1) {
+    if (!autoStartArmed || explicitDecision || swipeAttemptPending || event.touches?.length !== 1) {
       clearTouch();
       return;
     }
@@ -85,7 +89,7 @@ export function initWeddingMusic({
   }
 
   function handleTouchEnd(event) {
-    if (!autoStartArmed || explicitDecision || !Number.isFinite(touchStartY)) return;
+    if (!autoStartArmed || explicitDecision || swipeAttemptPending || !Number.isFinite(touchStartY)) return;
     const changedTouches = Array.from(event.changedTouches || []);
     const touch = touchIdentifier === null
       ? changedTouches[0]
@@ -95,8 +99,12 @@ export function initWeddingMusic({
     clearTouch();
     if (!Number.isFinite(endY) || upwardMovement < WEDDING_MUSIC_SWIPE_THRESHOLD) return;
 
-    disarmAutoStart();
-    void attemptPlay();
+    swipeAttempts += 1;
+    swipeAttemptPending = true;
+    void attemptPlay().then(played => {
+      swipeAttemptPending = false;
+      if (played || swipeAttempts >= WEDDING_MUSIC_MAX_SWIPE_ATTEMPTS) disarmAutoStart();
+    });
   }
 
   function handleTouchCancel() {
@@ -116,10 +124,18 @@ export function initWeddingMusic({
   windowTarget?.addEventListener('pageshow',syncState);
   syncState();
 
+  const initialAttempt = attemptPlay().then(played => {
+    autoplayPending = false;
+    if (played || explicitDecision) disarmAutoStart();
+    else autoStartArmed = true;
+    return played;
+  });
+
   return {
     syncState,
     togglePlayback,
-    getState: () => ({autoStartArmed,explicitDecision})
+    initialAttempt,
+    getState: () => ({autoStartArmed,explicitDecision,autoplayPending,swipeAttemptPending,swipeAttempts})
   };
 }
 
