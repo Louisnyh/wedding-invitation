@@ -15,8 +15,15 @@ export function initWeddingMusic({
   if (!audio || !button) return null;
 
   let touchStartY = null;
+  let touchIdentifier = null;
   let autoStartArmed = true;
   let explicitDecision = false;
+  const touchListenerOptions = {passive:true,capture:true};
+
+  const clearTouch = () => {
+    touchStartY = null;
+    touchIdentifier = null;
+  };
 
   const syncState = () => {
     const playing = !audio.paused && !audio.ended;
@@ -27,10 +34,10 @@ export function initWeddingMusic({
 
   const disarmAutoStart = () => {
     autoStartArmed = false;
-    touchStartY = null;
-    documentTarget?.removeEventListener('touchstart',handleTouchStart);
-    documentTarget?.removeEventListener('touchend',handleTouchEnd);
-    documentTarget?.removeEventListener('touchcancel',handleTouchCancel);
+    clearTouch();
+    documentTarget?.removeEventListener('touchstart',handleTouchStart,touchListenerOptions);
+    documentTarget?.removeEventListener('touchend',handleTouchEnd,touchListenerOptions);
+    documentTarget?.removeEventListener('touchcancel',handleTouchCancel,touchListenerOptions);
   };
 
   const attemptPlay = () => {
@@ -69,17 +76,23 @@ export function initWeddingMusic({
 
   function handleTouchStart(event) {
     if (!autoStartArmed || explicitDecision || event.touches?.length !== 1) {
-      touchStartY = null;
+      clearTouch();
       return;
     }
-    touchStartY = event.touches[0].clientY;
+    const touch = event.touches[0];
+    touchStartY = touch.clientY;
+    touchIdentifier = Number.isFinite(touch.identifier) ? touch.identifier : null;
   }
 
   function handleTouchEnd(event) {
     if (!autoStartArmed || explicitDecision || !Number.isFinite(touchStartY)) return;
-    const endY = event.changedTouches?.[0]?.clientY;
+    const changedTouches = Array.from(event.changedTouches || []);
+    const touch = touchIdentifier === null
+      ? changedTouches[0]
+      : changedTouches.find(candidate => candidate.identifier === touchIdentifier);
+    const endY = touch?.clientY;
     const upwardMovement = touchStartY - endY;
-    touchStartY = null;
+    clearTouch();
     if (!Number.isFinite(endY) || upwardMovement < WEDDING_MUSIC_SWIPE_THRESHOLD) return;
 
     disarmAutoStart();
@@ -87,14 +100,14 @@ export function initWeddingMusic({
   }
 
   function handleTouchCancel() {
-    touchStartY = null;
+    clearTouch();
   };
 
   audio.volume = WEDDING_MUSIC_VOLUME;
   button.addEventListener('click',togglePlayback);
-  documentTarget?.addEventListener('touchstart',handleTouchStart,{passive:true});
-  documentTarget?.addEventListener('touchend',handleTouchEnd,{passive:true});
-  documentTarget?.addEventListener('touchcancel',handleTouchCancel,{passive:true});
+  documentTarget?.addEventListener('touchstart',handleTouchStart,touchListenerOptions);
+  documentTarget?.addEventListener('touchend',handleTouchEnd,touchListenerOptions);
+  documentTarget?.addEventListener('touchcancel',handleTouchCancel,touchListenerOptions);
   audio.addEventListener('play',syncState);
   audio.addEventListener('pause',syncState);
   audio.addEventListener('ended',syncState);

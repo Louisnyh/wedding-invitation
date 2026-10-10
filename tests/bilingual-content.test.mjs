@@ -25,6 +25,14 @@ test('Page 02 places all three approved English translations with the Chinese co
   assert.equal((page02.match(/class="story__paragraph"/g)||[]).length,3);
 });
 
+test('Page 02 English line boundaries preserve semantic word spacing',()=>{
+  const text=page02.replace(/<br\s*\/?>/gi,'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+  assert.match(text,/perfect reason to bring together/);
+  assert.doesNotMatch(text,/perfect reasonto bring together/);
+  assert.match(text,/the food, and be there with us/);
+  assert.doesNotMatch(text,/the food,and be there with us/);
+});
+
 test('Page 05 English venue name is canonical content rendered beneath the Chinese venue',()=>{
   assert.equal(WEDDING_CONTENT.venue.venueName,'億家主题宴会厅 · Hall E 露天草坪');
   assert.equal(WEDDING_CONTENT.venue.venueNameEn,'YIJIA Theme Banquet');

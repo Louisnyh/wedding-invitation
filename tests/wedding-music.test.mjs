@@ -55,9 +55,9 @@ function setup() {
   return {audio,button,documentTarget,windowTarget,controller};
 }
 
-function touchEvent(type,y,{touches=true}={}) {
+function touchEvent(type,y,{touches=true,identifier=1}={}) {
   const event = new Event(type);
-  Object.defineProperty(event,touches?'touches':'changedTouches',{value:[{clientY:y}]});
+  Object.defineProperty(event,touches?'touches':'changedTouches',{value:[{clientY:y,identifier}]});
   return event;
 }
 
@@ -124,6 +124,50 @@ test('qualifying upward touch swipe calls play directly from touchend',async()=>
   await flush();
   assert.equal(audio.playCalls,1);
   assert.equal(calledDuringGesture,true);
+});
+
+test('opening and referrer source never change first-swipe behavior',async()=>{
+  for(const referrer of [
+    '',
+    'https://web.whatsapp.com/',
+    'https://t.me/',
+    'https://www.messenger.com/',
+    'https://www.google.com/'
+  ]) {
+    const instance=setup();
+    Object.defineProperty(instance.documentTarget,'referrer',{value:referrer});
+    swipe(instance.documentTarget,200,100);
+    await flush();
+    assert.equal(instance.audio.playCalls,1,referrer);
+  }
+});
+
+test('music startup contains no source or user-agent detection',()=>{
+  assert.doesNotMatch(script,/whatsapp|telegram|messenger|userAgent|navigator\.userAgent|document\.referrer|location\.(?:href|search|host)/i);
+});
+
+test('touch completion follows the same finger that began the swipe',async()=>{
+  const {audio,documentTarget,controller}=setup();
+  documentTarget.dispatchEvent(touchEvent('touchstart',200,{identifier:7}));
+  documentTarget.dispatchEvent(touchEvent('touchend',100,{touches:false,identifier:8}));
+  await flush();
+  assert.equal(audio.playCalls,0);
+  assert.equal(controller.getState().autoStartArmed,true);
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,1);
+});
+
+test('touch cancellation preserves scrolling and allows the next genuine swipe',async()=>{
+  const {audio,documentTarget,controller}=setup();
+  documentTarget.dispatchEvent(touchEvent('touchstart',200));
+  documentTarget.dispatchEvent(new Event('touchcancel'));
+  await flush();
+  assert.equal(audio.playCalls,0);
+  assert.equal(controller.getState().autoStartArmed,true);
+  swipe(documentTarget,200,100);
+  await flush();
+  assert.equal(audio.playCalls,1);
 });
 
 test('movement below the swipe threshold does not start music',async()=>{
@@ -322,5 +366,5 @@ test('approved Open Graph copy remains unchanged in the r5 build',()=>{
 });
 
 test('backend candidate and previous immutable releases remain untouched',()=>{
-  assert.doesNotThrow(()=>execFileSync('git',['diff','--quiet','origin/main','--','apps-script.gs','candidate-v2','release-v2-20260921','release-v2-20260922-r2','release-v2-20260922-r3','release-v2-20260926-r4'],{cwd:root}));
+  assert.doesNotThrow(()=>execFileSync('git',['diff','--quiet','origin/main','--','apps-script.gs','candidate-v2','release-v2-20260921','release-v2-20260922-r2','release-v2-20260922-r3','release-v2-20260926-r4','release-v2-20260927-r5','release-v2-20261002-r6'],{cwd:root}));
 });
