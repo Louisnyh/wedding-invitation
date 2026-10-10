@@ -41,8 +41,8 @@ test('r8 preserves the approved endpoint and contains no guest credential',async
   assert.doesNotMatch(config,/[?&]token=|[a-f0-9]{64}/);
 });
 
-test('public root remains on r7 until deployment approval',async()=>{
+test('public root serves the approved r8 release',async()=>{
   const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
-  assert.match(html,/<base href="\.\/release-v2-20261010-r7\/frontend-v2\/" \/>/);
-  assert.doesNotMatch(html,/release-v2-20261010-r8\/frontend-v2/);
+  assert.match(html,/<base href="\.\/release-v2-20261010-r8\/frontend-v2\/" \/>/);
+  assert.doesNotMatch(html,/<base href="\.\/release-v2-20261010-r7\/frontend-v2\/" \/>/);
 });

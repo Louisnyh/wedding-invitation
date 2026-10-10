@@ -40,8 +40,8 @@ test('r7 remains immutable after the next music refinement',async()=>{
   assert.doesNotThrow(()=>execFileSync('git',['diff','--quiet','origin/main','--','release-v2-20261002-r6'],{cwd:root}));
 });
 
-test('public root serves the approved r7 release',async()=>{
-  const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
-  assert.match(html,/<base href="\.\/release-v2-20261010-r7\/frontend-v2\/" \/>/);
-  assert.doesNotMatch(html,/<base href="\.\/release-v2-20261002-r6\/frontend-v2\/" \/>/);
+test('r7 remains available as the immediate rollback release',async()=>{
+  const html=await readFile(new URL('frontend-v2/index.html',releaseRoot),'utf8');
+  assert.match(html,/perfect reason <br \/>to bring together/);
+  assert.match(html,/assets\/audio\/canon-in-love\.m4a/);
 });
