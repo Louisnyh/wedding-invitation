@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#f0e7db">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="description" content="Louis & Joyce · 23 January 2027. A little surprise, a seat saved for you.">
+  <title>Find Your Seat · Louis & Joyce</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <div id="demo-banner" class="demo-banner" hidden>体验模式 · 示例资料 <span>Demo — sample details only</span></div>
+  <div class="page-shell">
+    <header class="masthead">
+      <a class="couple" href="../?invite=general" aria-label="Louis and Joyce 电子请帖">Louis <i>&</i> Joyce</a>
+      <p class="event-date">23 JANUARY 2027</p>
+    </header>
+
+    <main id="main-content">
+      <section id="welcome" class="welcome" aria-labelledby="page-title">
+        <div class="garden-mark" aria-hidden="true">
+          <svg viewBox="0 0 100 92" fill="none"><path d="M50 82V36M50 66C28 65 20 52 23 40c15-1 27 9 27 26ZM50 53c20-1 30-14 27-28-15 1-27 10-27 28ZM50 37c-13-9-16-21-8-32 13 5 17 18 8 32Z"/><path class="stem-fine" d="M32 49 50 66M67 35 50 53M43 15l7 22M34 82h32"/></svg>
+        </div>
+        <p class="eyebrow">A SEAT SAVED FOR YOU</p>
+        <h1 id="page-title">Find your seat.</h1>
+        <p class="opening-zh">你的位置，我们留好了。</p>
+        <p class="opening-en">A little surprise before the celebration.</p>
+
+        <form id="lookup-form" class="lookup-form" novalidate>
+          <label for="guest-name">你的姓名 <span>Your name</span></label>
+          <div class="input-wrap">
+            <input id="guest-name" name="name" type="text" autocomplete="name" autocapitalize="words" enterkeyhint="search" maxlength="120" placeholder="请输入姓名 / Your full name" aria-describedby="name-hint form-error" required>
+          </div>
+          <p id="name-hint" class="field-hint">请使用 RSVP 时填写的姓名。<br><span>Use the name on your RSVP.</span></p>
+          <p id="form-error" class="form-error" role="alert" hidden></p>
+          <button id="lookup-button" class="button-primary" type="submit"><span>寻找我的座位</span><small>Find my seat</small></button>
+        </form>
+        <p id="demo-hint" class="demo-hint" hidden>已填入示例姓名，点击按钮即可体验刮刮乐。</p>
+      </section>
+
+      <section id="loading" class="loading-panel" aria-live="polite" aria-busy="true" hidden>
+        <span class="loading-ring" aria-hidden="true"></span>
+        <h2>正在找你的位置</h2>
+        <p>Finding your seat…</p>
+      </section>
+
+      <section id="result" class="result-panel" aria-labelledby="result-title" hidden>
+        <p class="eyebrow">SO HAPPY YOU’RE HERE</p>
+        <h2 id="result-title" tabindex="-1">欢迎你</h2>
+        <p id="result-name" class="guest-welcome"></p>
+        <p class="result-intro">轻轻刮开，看看今晚坐哪里。<br><span>Scratch to discover your table.</span></p>
+        <div id="scratch-host"></div>
+        <p id="revealed-note" class="revealed-note" hidden>带着这张卡片，找到你的座位。<br><span>Keep this card handy, and make yourself at home.</span></p>
+        <button class="text-button" id="another-guest" type="button">查找其他来宾 <span>Find another guest</span></button>
+      </section>
+
+      <section id="message" class="message-panel" aria-labelledby="message-title" hidden>
+        <div class="message-emblem" aria-hidden="true">✧</div>
+        <h2 id="message-title" tabindex="-1"></h2>
+        <p id="message-copy"></p>
+        <p id="message-english" class="message-english"></p>
+        <button id="message-back" class="button-primary" type="button"><span>返回查找</span><small>Back to search</small></button>
+      </section>
+      <div class="reception-help">
+        <span class="reception-line" aria-hidden="true"></span>
+        <p>需要帮忙？请找现场接待人员。<br><span>Our reception team is happy to help.</span></p>
+      </div>
+    </main>
+    <footer class="footer"><p>So glad to celebrate with you.</p><span>LOUIS & JOYCE</span></footer>
+  </div>
+  <noscript><div class="noscript-note">请开启 JavaScript，或请现场接待人员帮你查找座位。<br>Please enable JavaScript or ask our reception team for your table.</div></noscript>
+</body>
+</html>

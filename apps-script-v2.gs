@@ -20,7 +20,10 @@ function doPost(e) {
     if (typeof raw !== "string" || raw.length > 8192) return jsonResponse(apiError("invalid_invitation"));
     const request = JSON.parse(raw);
     if (!request || Array.isArray(request) || typeof request !== "object") return jsonResponse(apiError("invalid_invitation"));
-    if (!["invitation", "rsvp", "general_registration"].includes(request.action)) return jsonResponse(apiError("invalid_invitation"));
+    if (!["invitation", "rsvp", "general_registration", "table_lookup"].includes(request.action)) return jsonResponse(apiError("invalid_invitation"));
+    if (request.action === "table_lookup") {
+      return jsonResponse(publicTableLookup(openConfiguredSpreadsheet(), request, new Date()));
+    }
     if (request.action === "general_registration") {
       return jsonResponse(registerGeneralRsvp(openConfiguredSpreadsheet(), request));
     }
@@ -166,6 +169,67 @@ function tableResponse(spreadsheet, guest, settings, now) {
     if (!name) return { state: "assignment_pending" };
     return { state: "available", assignment: { name: name } };
   } catch (_) { return { state: "temporary_error" }; }
+}
+
+// Reception lookup is read-only and opt-in. It never returns invitation
+// credentials, guest IDs, contact details, RSVP answers or a guest directory.
+function normalizeTableLookupName(value) {
+  if (typeof value !== "string" || value.length > 240 || /[\u0000-\u001f\u007f]/.test(value)) return "";
+  const normalized = value.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase();
+  const length = Array.from(normalized).length;
+  if (length < 2 || length > 120 || /[*?%_\[\]{}\\|<>]/.test(normalized) || !/[\p{L}\p{M}]/u.test(normalized)) return "";
+  return normalized;
+}
+function publicLookupGuestEligible(guest, now) {
+  const active = ["", "active", "invited", "sent", "delivered", "opened", "valid"];
+  if (!active.includes(String(guest.invitation_status || "").trim().toLowerCase())) return false;
+  if (["yes", "true", "1"].includes(String(guest.revoked || "").trim().toLowerCase())) return false;
+  if (!String(guest.guest_id || "").trim() || !cleanToken(guest.token)) return false;
+  if (guest.expires_at) {
+    const expiry = expiryInstant(guest.expires_at);
+    if (expiry === null || now.getTime() >= expiry) return false;
+  }
+  return true;
+}
+function publicTableLookup(spreadsheet, request, now) {
+  if (Object.keys(request).sort().join("|") !== "action|name") return apiError("invalid_query");
+  const query = normalizeTableLookupName(request.name);
+  if (!query) return apiError("invalid_query");
+  const settings = readSettings(spreadsheet);
+  if (String(settings.public_table_lookup_enabled || "").trim().toLowerCase() !== "yes") return apiError("disabled");
+  // Check the release gate before searching so a closed lookup cannot confirm
+  // whether a name is on the invitation list.
+  const decision = releaseDecision(settings, now);
+  if (decision.state === "locked") return apiError("locked");
+  if (decision.state !== "released") return apiError("temporary_error");
+  const guests = readRows(spreadsheet, "Guests", ["guest_id", "token", "guest_name", "invitation_status"]).rows;
+  const idCounts = Object.create(null);
+  const tokenCounts = Object.create(null);
+  guests.forEach(function (guest) {
+    const id = String(guest.guest_id || "").trim();
+    const token = cleanToken(guest.token);
+    if (id) idCounts[id] = (idCounts[id] || 0) + 1;
+    if (token) tokenCounts[token] = (tokenCounts[token] || 0) + 1;
+  });
+  const matches = guests.filter(function (guest) {
+    if (!publicLookupGuestEligible(guest, now)) return false;
+    if (idCounts[String(guest.guest_id).trim()] !== 1 || tokenCounts[cleanToken(guest.token)] !== 1) return false;
+    const names = [guest.guest_name];
+    if (typeof guest.search_aliases === "string") {
+      // Optional sheet column: separate complete aliases with ;, | or a new line.
+      names.push.apply(names, guest.search_aliases.split(/[;|\r\n]+/));
+    }
+    return names.some(function (name) { return normalizeTableLookupName(name) === query; });
+  });
+  if (matches.length === 0) return apiError("not_found");
+  if (matches.length !== 1) return apiError("ambiguous");
+  const table = tableResponse(spreadsheet, matches[0], settings, now);
+  if (table.state === "temporary_error") return apiError("temporary_error");
+  return {
+    schemaVersion: API_VERSION, state: "ready",
+    guest: { displayName: publicText(matches[0].guest_name, 120) || "Guest" },
+    tableCheck: table
+  };
 }
 function strictInteger(value, min, max) {
   if (typeof value === "string" && !/^[1-9]\d*$/.test(value)) return null;

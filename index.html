@@ -38,6 +38,8 @@
     <link rel="stylesheet" href="styles/page-07.css" />
     <link rel="stylesheet" href="styles/page-08.css" />
     <link rel="stylesheet" href="styles/motion.css" />
+    <link rel="stylesheet" href="../../seating/invitation-link.css" />
+    <script src="../../seating/invitation-link.js"></script>
   </head>
   <body>
     <audio id="wedding-music" loop preload="metadata" aria-hidden="true">
@@ -341,6 +343,14 @@
 
           <p class="rsvp__announcement" id="rsvp-announcement" role="status" aria-live="polite" tabindex="-1"></p>
         </div>
+      </section>
+      <section class="seat-entry" aria-labelledby="seat-entry-title">
+        <p class="seat-entry__eyebrow">A LITTLE SURPRISE AWAITS</p>
+        <h2 id="seat-entry-title">Find Your Seat</h2>
+        <p lang="zh-Hans">为你留好的位置，等你来揭晓。</p>
+        <a id="seat-entry-link" class="seat-entry__button" href="../../seating/">
+          <span lang="zh-Hans">查找我的座位</span><small lang="en">Reveal my table</small>
+        </a>
       </section>
     </main>
     <script type="module" src="scripts/wedding-content-renderer.js"></script>
